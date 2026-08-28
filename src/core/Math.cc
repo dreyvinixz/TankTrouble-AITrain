@@ -30,7 +30,7 @@ namespace TankTrouble::util
     std::vector<Vec> getCornerVec(const Vec& pos, double angle, int w, int h)
     {
         Vec tl, tr, bl, br;
-        static double diagM2 = sqrt(pow(w, 2) + pow(h, 2)) / 2.0;
+        static double diagM2 = std::sqrt(static_cast<double>(w * w + h * h)) / 2.0;
         double a = rad2Deg(atan2((double) w, (double) h));
         double a1 = a + angle;
         double a2 = angle - a;
@@ -48,9 +48,11 @@ namespace TankTrouble::util
         Vec v = Vec(circleCenter.x() - rectCenter.x(), circleCenter.y() - rectCenter.y());
         double d1 = std::abs(v * vec2);
         double d2 = std::abs(v * vec1);
-        double d3 = sqrt(pow(static_cast<double>(width) / 2, 2) + pow(static_cast<double>(height) / 2, 2));
+        double halfW = static_cast<double>(width) / 2.0;
+        double halfH = static_cast<double>(height) / 2.0;
+        double d3 = std::sqrt(halfW * halfW + halfH * halfH);
         double d = v.norm();
-        if(d1 < static_cast<double>(width) / 2 + r && d2 < static_cast<double>(height) / 2 + r && d < d3 + r)
+        if(d1 < halfW + r && d2 < halfH + r && d < d3 + r)
             return true;
         return false;
     }
@@ -160,11 +162,20 @@ namespace TankTrouble::util
         return rad2Deg(acos(cos));
     }
 
+    static std::mt19937& getRngEngine()
+    {
+        static std::mt19937 gen(std::random_device{}());
+        return gen;
+    }
+
+    void setRandomSeed(unsigned int seed)
+    {
+        getRngEngine().seed(seed);
+    }
+
     int getRandomNumber(int low, int high)
     {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> distrib(low, high);
-        return distrib(gen);
+        std::uniform_int_distribution<int> distrib(low, high);
+        return distrib(getRngEngine());
     }
 }

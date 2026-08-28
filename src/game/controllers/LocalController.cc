@@ -260,9 +260,9 @@ namespace TankTrouble
         for(int id: deletedObjs)
             objects.erase(id);
         std::lock_guard<std::mutex> lg(mu);
-        if(!snapshot.unique())
+        if(snapshot.use_count() != 1)
             snapshot.reset(new ObjectList);
-        assert(snapshot.unique());
+        assert(snapshot.use_count() == 1);
         snapshot->clear();
         for(auto& entry: objects)
         {

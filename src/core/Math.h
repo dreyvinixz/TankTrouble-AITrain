@@ -58,6 +58,7 @@ namespace TankTrouble::util
     // Angle between two vectors, in degrees.
     double angleBetweenVectors(const Vec& v1, const Vec& v2);
 
+    void setRandomSeed(unsigned int seed);
     int getRandomNumber(int low, int high);
 }
 

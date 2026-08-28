@@ -113,7 +113,9 @@ namespace TankTrouble
     int AStar::calcH(AStarNode* cur, int ex, int ey)
     {
         assert(cur != nullptr);
-        return static_cast<int>(sqrt(pow(ex - cur->x, 2) + pow(ey - cur->y, 2)));
+        int dx = ex - cur->x;
+        int dy = ey - cur->y;
+        return static_cast<int>(std::sqrt(dx * dx + dy * dy));
     }
 
     std::vector<AStar::AStarNode> AStar::getReachable(int x, int y)

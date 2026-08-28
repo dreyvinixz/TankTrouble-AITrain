@@ -485,7 +485,6 @@ namespace TankTrouble
         if(!stop)
             *finalStrategy = tryRotatingWithMoving(globalSteps);
 
-        std::cout << *finalStrategy << threats[0].shellId << " " << threats[0].seq << std::endl;
         ctl->updateStrategy(finalStrategy);
     }
 
