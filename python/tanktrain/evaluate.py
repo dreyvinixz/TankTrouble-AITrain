@@ -152,6 +152,7 @@ def record_replay_episode(
         hit_by_opponent_reward=environment_config.hit_by_opponent_reward,
         timeout_reward=environment_config.timeout_reward,
         draw_reward=environment_config.draw_reward,
+        frame_stack=environment_config.frame_stack,
     )
     env = TankTrainVectorEnv(eval_config)
     obs = env.reset(seed)
