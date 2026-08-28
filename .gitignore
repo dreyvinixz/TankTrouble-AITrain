@@ -52,3 +52,5 @@
 /runs/
 /checkpoints/
 /logs/
+/dashboard/node_modules/
+/dashboard/dist/

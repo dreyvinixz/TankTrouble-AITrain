@@ -10,9 +10,11 @@ from pathlib import Path
 import torch
 
 from .environment import EnvironmentConfig, TankTrainVectorEnv
+from .evaluate import record_replay_episode
 from .model import ActorCritic
 from .ppo import PPO, PPOConfig
 from .runtime import git_revision, load_yaml, repository_root, require_cuda, seed_everything, write_json
+from .telemetry import TelemetryTracker
 
 
 def main() -> None:
@@ -62,6 +64,11 @@ def main() -> None:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run_directory = repository_root() / "runs" / f"{config['run_name']}_{timestamp}"
     run_directory.mkdir(parents=True, exist_ok=False)
+    replays_dir = run_directory / "replays"
+    replays_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints_dir = run_directory / "checkpoints"
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
     write_json(
         run_directory / "metadata.json",
         {
@@ -72,29 +79,63 @@ def main() -> None:
             "cuda": torch.version.cuda,
             "training_config": config,
             "environment_config": environment_data,
+            "created_at": timestamp,
         },
     )
 
+    tracker = TelemetryTracker(
+        run_name=config["run_name"],
+        total_updates=int(config["total_updates"]),
+        rollout_steps=int(config["rollout_steps"]),
+        num_envs=int(environment_data["num_envs"]),
+        run_directory=run_directory,
+    )
+
     history_path = run_directory / "metrics.jsonl"
-    with history_path.open("w", encoding="utf-8") as history:
-        for update in range(1, int(config["total_updates"]) + 1):
-            observation, batch, rollout_metrics = ppo.collect(environment, observation)
-            update_metrics = ppo.update(batch)
-            metrics = {"update": update, **rollout_metrics, **update_metrics}
-            history.write(json.dumps(metrics, sort_keys=True) + "\n")
-            history.flush()
-            if update == 1 or update % int(config["checkpoint_interval"]) == 0:
-                torch.save(
-                    {
-                        "model": model.state_dict(),
-                        "hidden_sizes": hidden_sizes,
-                        "observation_size": environment.observation_size,
-                        "environment_config": environment_data,
-                        "training_config": config,
-                    },
-                    run_directory / f"policy_{update:05d}.pt",
-                )
-            print(json.dumps(metrics, sort_keys=True))
+    try:
+        with history_path.open("w", encoding="utf-8") as history:
+            for update in range(1, int(config["total_updates"]) + 1):
+                observation, batch, rollout_metrics = ppo.collect(environment, observation)
+                update_metrics = ppo.update(batch)
+                metrics = {"update": update, **rollout_metrics, **update_metrics}
+
+                # Update live telemetry state & inspect network
+                tracker.update(update, metrics, model=model, sample_obs=observation[:1])
+
+                history.write(json.dumps(metrics, sort_keys=True) + "\n")
+                history.flush()
+
+                if update == 1 or update % int(config["checkpoint_interval"]) == 0 or update == int(config["total_updates"]):
+                    ckpt_path = checkpoints_dir / f"policy_{update:05d}.pt"
+                    torch.save(
+                        {
+                            "model": model.state_dict(),
+                            "hidden_sizes": hidden_sizes,
+                            "observation_size": environment.observation_size,
+                            "environment_config": environment_data,
+                            "training_config": config,
+                            "update": update,
+                        },
+                        ckpt_path,
+                    )
+
+                    # Generate deterministic replay snapshot
+                    try:
+                        replay_data = record_replay_episode(
+                            model, environment_config, seed=seed + 77, device=device, max_steps=400
+                        )
+                        replay_file = replays_dir / f"replay_{update:05d}.json"
+                        write_json(replay_file, replay_data)
+                        write_json(replays_dir / "latest.json", replay_data)
+                    except Exception as replay_err:
+                        print(f"Warning: could not record replay snapshot: {replay_err}")
+
+                print(json.dumps(metrics, sort_keys=True))
+
+        tracker.set_status("completed")
+    except Exception as exc:
+        tracker.set_status("error")
+        raise exc
 
 
 if __name__ == "__main__":
