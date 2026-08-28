@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MetricPoint, RunSummary, TrainingProgress } from './types/telemetry';
-import { ReplayData, ReplayMeta } from './types/replay';
+import { LiveFrame, ReplayData, ReplayMeta } from './types/replay';
 import {
   createLiveTelemetrySocket,
   fetchReplayData,
@@ -8,6 +8,9 @@ import {
   fetchRunReplays,
   fetchRuns,
   fetchRunState,
+  fetchTrainingStatus,
+  startTraining,
+  stopTraining,
 } from './services/api';
 import { Header } from './components/Header';
 import { MetricsGrid } from './components/MetricsGrid';
@@ -23,27 +26,44 @@ export const App: React.FC = () => {
   const [metrics, setMetrics] = useState<MetricPoint[]>([]);
   const [replays, setReplays] = useState<ReplayMeta[]>([]);
   const [selectedReplay, setSelectedReplay] = useState<ReplayData | null>(null);
+  const [liveFrame, setLiveFrame] = useState<LiveFrame | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isTraining, setIsTraining] = useState<boolean>(false);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
 
-  // 1. Initial load of runs list
+  // 1. Check training process status periodically
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const res = await fetchTrainingStatus();
+        setIsTraining(res.is_training);
+      } catch {
+        // ignore
+      }
+    }
+    checkStatus();
+    const interval = setInterval(checkStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 2. Initial load & periodic background refresh of runs list
   useEffect(() => {
     async function loadRuns() {
       try {
         const fetchedRuns = await fetchRuns();
         setRuns(fetchedRuns);
-        if (fetchedRuns.length > 0 && !selectedRunId) {
-          setSelectedRunId(fetchedRuns[0].run_id);
-        }
+        // Only select first run if NO run is currently selected
+        setSelectedRunId((current) => current || (fetchedRuns.length > 0 ? fetchedRuns[0].run_id : ''));
       } catch (err) {
         console.error('Erro ao carregar runs:', err);
       }
     }
     loadRuns();
-    const interval = setInterval(loadRuns, 5000);
+    const interval = setInterval(loadRuns, 4000);
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Load run state, metrics, and replays when selectedRunId changes
+  // 3. Load run state, metrics, and replays when selectedRunId changes
   useEffect(() => {
     if (!selectedRunId) return;
 
@@ -59,7 +79,6 @@ export const App: React.FC = () => {
         setMetrics(metricsData);
         setReplays(replaysData);
 
-        // Load latest/best replay if available
         if (replaysData.length > 0) {
           const replayContent = await fetchReplayData(selectedRunId, replaysData[0].replay_id);
           setSelectedReplay(replayContent);
@@ -73,14 +92,13 @@ export const App: React.FC = () => {
 
     loadRunData();
 
-    // 3. Connect WebSocket for live streaming
+    // Connect WebSocket for live telemetry & real-time arena streaming
     const cleanupWs = createLiveTelemetrySocket(
       selectedRunId,
       (liveTelemetry) => {
         setIsConnected(true);
         setTelemetry(liveTelemetry);
 
-        // Append latest metric point to charts if available
         if (liveTelemetry.latest_metrics && liveTelemetry.latest_metrics.update) {
           setMetrics((prev) => {
             const lastUpdate = prev.length > 0 ? prev[prev.length - 1].update : 0;
@@ -90,6 +108,9 @@ export const App: React.FC = () => {
             return prev;
           });
         }
+      },
+      (incomingFrame: LiveFrame) => {
+        setLiveFrame(incomingFrame);
       },
       () => setIsConnected(false)
     );
@@ -110,15 +131,53 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleStartTraining = async () => {
+    try {
+      setIsStarting(true);
+      await startTraining();
+      setIsTraining(true);
+      // Wait for process to create new run directory
+      setTimeout(async () => {
+        try {
+          const fetchedRuns = await fetchRuns();
+          setRuns(fetchedRuns);
+          if (fetchedRuns.length > 0) {
+            setSelectedRunId(fetchedRuns[0].run_id);
+          }
+        } catch {
+          // ignore
+        } finally {
+          setIsStarting(false);
+        }
+      }, 1500);
+    } catch (err) {
+      console.error('Erro ao iniciar treinamento:', err);
+      setIsStarting(false);
+    }
+  };
+
+  const handleStopTraining = async () => {
+    try {
+      await stopTraining();
+      setIsTraining(false);
+    } catch (err) {
+      console.error('Erro ao parar treinamento:', err);
+    }
+  };
+
   return (
     <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '24px 20px' }}>
-      {/* 1. Header & Quick Counters */}
+      {/* 1. Header with 1-Click Start/Stop Button */}
       <Header
         runs={runs}
         selectedRunId={selectedRunId}
         onSelectRun={setSelectedRunId}
         telemetry={telemetry}
         isConnected={isConnected}
+        isTraining={isTraining}
+        isStarting={isStarting}
+        onStartTraining={handleStartTraining}
+        onStopTraining={handleStopTraining}
       />
 
       {/* 2. Main KPI Metrics Grid */}
@@ -133,12 +192,14 @@ export const App: React.FC = () => {
           alignItems: 'start',
         }}
       >
-        {/* Left Column: Charts & 2D Replay Player */}
+        {/* Left Column: Charts & 2D Live / Replay Player */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <ChartsPanel metrics={metrics} />
           <ReplayPlayer
             replays={replays}
             selectedReplay={selectedReplay}
+            liveFrame={liveFrame}
+            runStatus={telemetry?.status}
             onSelectReplay={handleSelectReplay}
           />
         </div>

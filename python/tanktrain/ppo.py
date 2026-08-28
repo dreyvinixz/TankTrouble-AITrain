@@ -37,7 +37,10 @@ class PPO:
         self._episode_count: int = 0
 
     def collect(
-        self, environment: object, observation: torch.Tensor
+        self,
+        environment: Any,
+        observation: torch.Tensor,
+        step_callback: Any | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, float]]:
         observations: list[torch.Tensor] = []
         actions: list[torch.Tensor] = []
@@ -52,9 +55,21 @@ class PPO:
         if self._episode_returns is None or self._episode_returns.shape[0] != observation.shape[0]:
             self._episode_returns = torch.zeros(observation.shape[0], device=self.device)
 
-        for _ in range(self.config.rollout_steps):
+        for step_idx in range(self.config.rollout_steps):
             with torch.no_grad():
                 action, log_probability, value = self.model.sample(observation)
+
+            if step_callback is not None and step_idx % 4 == 0:
+                try:
+                    step_callback(
+                        observation[0].cpu().numpy(),
+                        action[0].cpu().tolist(),
+                        float(value[0].item()),
+                        step_idx,
+                    )
+                except Exception:
+                    pass
+
             step_result = environment.step(action.cpu().numpy())
             next_observation, reward, terminated, truncated = step_result[:4]
             done = terminated | truncated

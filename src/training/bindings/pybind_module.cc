@@ -19,7 +19,8 @@ namespace
     public:
         VectorTankArena(int count, uint32_t seed, int ticksPerAction, int maxDecisions,
                         float winReward, float lossReward, float survivalReward,
-                        float hitOpponentReward, float hitByOpponentReward): config_(), rootSeed_(seed)
+                        float hitOpponentReward, float hitByOpponentReward,
+                        float timeoutReward = -0.20F, float drawReward = 0.0F): config_(), rootSeed_(seed)
         {
             if(count <= 0) throw std::invalid_argument("count must be positive");
             config_.seed = seed;
@@ -30,6 +31,8 @@ namespace
             config_.survivalRewardPerTick = survivalReward;
             config_.hitOpponentReward = hitOpponentReward;
             config_.hitByOpponentReward = hitByOpponentReward;
+            config_.timeoutReward = timeoutReward;
+            config_.drawReward = drawReward;
             environments_.reserve(static_cast<size_t>(count));
             for(int index = 0; index < count; ++index)
             {
@@ -112,11 +115,12 @@ PYBIND11_MODULE(tanktrain_env, module)
     module.doc() = "Deterministic vectorized TankTrouble AI Train environment";
     module.attr("OBSERVATION_SIZE") = TankArena::OBSERVATION_SIZE;
     py::class_<VectorTankArena>(module, "VectorTankArena")
-        .def(py::init<int, uint32_t, int, int, float, float, float, float, float>(), py::arg("num_envs"), py::arg("seed"),
+        .def(py::init<int, uint32_t, int, int, float, float, float, float, float, float, float>(), py::arg("num_envs"), py::arg("seed"),
              py::arg("ticks_per_action") = 3, py::arg("max_decisions") = 600,
              py::arg("win_reward") = 1.0F, py::arg("loss_reward") = -1.0F,
              py::arg("survival_reward") = 0.002F, py::arg("hit_opponent_reward") = 0.10F,
-             py::arg("hit_by_opponent_reward") = -0.10F)
+             py::arg("hit_by_opponent_reward") = -0.10F,
+             py::arg("timeout_reward") = -0.20F, py::arg("draw_reward") = 0.0F)
         .def("reset", &VectorTankArena::reset, py::arg("seed"))
         .def("step", &VectorTankArena::step, py::arg("actions"))
         .def_property_readonly("num_envs", &VectorTankArena::size);

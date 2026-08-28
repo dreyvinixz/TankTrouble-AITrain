@@ -71,7 +71,10 @@ namespace TankTrouble::training
 
         ++decision_;
         if(!terminated_ && decision_ >= config_.maxDecisions)
+        {
             truncated_ = true;
+            result.reward += config_.timeoutReward;
+        }
 
         result.observation = observation();
         result.terminated = terminated_;
@@ -204,6 +207,9 @@ namespace TankTrouble::training
     {
         std::vector<ShellState> active;
         active.reserve(shells_.size());
+        bool playerHit = false;
+        bool opponentHit = false;
+
         for(auto shell: shells_)
         {
             const float radians = shell.angle * kPi / 180.0F;
@@ -222,23 +228,57 @@ namespace TankTrouble::training
             ++shell.age;
             --shell.ttl;
 
-            if(shell.age > 2 && tankHit(shell, shell.owner == 0 ? opponent_ : player_))
+            bool hit = false;
+            if(shell.age > 2)
             {
-                const bool playerHit = shell.owner == 0;
-                result.reward += playerHit ? config_.hitOpponentReward + config_.winReward
-                                           : config_.hitByOpponentReward + config_.lossReward;
-                result.playerWon = playerHit;
-                terminated_ = true;
-                break;
+                const bool hitP = tankHit(shell, player_);
+                const bool hitO = tankHit(shell, opponent_);
+                if(hitP || hitO)
+                {
+                    playerHit |= hitP;
+                    opponentHit |= hitO;
+                    hit = true;
+                }
             }
-            if(shell.ttl > 0)
-                active.push_back(shell);
-            else if(shell.owner == 0)
-                ++player_.ammo;
+
+            if(!hit)
+            {
+                if(shell.ttl > 0)
+                    active.push_back(shell);
+                else if(shell.owner == 0)
+                    ++player_.ammo;
+                else
+                    ++opponent_.ammo;
+            }
             else
-                ++opponent_.ammo;
+            {
+                if(shell.owner == 0)
+                    ++player_.ammo;
+                else
+                    ++opponent_.ammo;
+            }
         }
         shells_ = std::move(active);
+
+        if(playerHit || opponentHit)
+        {
+            terminated_ = true;
+            if(playerHit && opponentHit)
+            {
+                result.reward += config_.drawReward;
+                result.playerWon = false;
+            }
+            else if(playerHit)
+            {
+                result.reward += config_.lossReward;
+                result.playerWon = false;
+            }
+            else
+            {
+                result.reward += config_.winReward;
+                result.playerWon = true;
+            }
+        }
     }
 
     TankAction TankArena::agentSmithAction()
@@ -255,11 +295,13 @@ namespace TankTrouble::training
         const float dy = player_.y - opponent_.y;
         const float distance = std::sqrt(dx * dx + dy * dy);
 
-        // Agent Smith attacks on a slower scheduler and will not request a
-        // second shot until the previous shell has had time to clear the tank.
-        // 80/60 ticks are the legacy attack period/fire cooldown respectively.
-        if(globalTick_ % 80 == 0 && globalTick_ >= opponentNextFireTick_
-            && opponent_.ammo > 0 && distance <= 120.0F && hasDirectShot())
+        // Agent Smith attacks when target is within physical bullet reach (~170px)
+        // and there is an unobstructed direct line of sight.
+        constexpr float kSmithFireRange = 170.0F;
+        constexpr int kSmithFireCooldown = 30; // ~10 decisions at ticksPerAction=3
+
+        if(globalTick_ >= opponentNextFireTick_
+            && opponent_.ammo > 0 && distance <= kSmithFireRange && hasDirectShot())
         {
             const float desired = angleTo(opponent_.x, opponent_.y, player_.x, player_.y);
             float delta = desired - opponent_.angle;
@@ -268,7 +310,7 @@ namespace TankTrouble::training
             if(std::abs(delta) < 4.0F)
             {
                 action.fire = 1;
-                opponentNextFireTick_ = globalTick_ + 60;
+                opponentNextFireTick_ = globalTick_ + kSmithFireCooldown;
             }
         }
         return action;

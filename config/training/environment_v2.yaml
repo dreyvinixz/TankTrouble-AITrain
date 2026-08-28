@@ -1,0 +1,12 @@
+seed: 17
+num_envs: 32
+ticks_per_action: 3
+max_decisions: 600
+reward:
+  win: 1.0
+  loss: -1.0
+  draw: 0.0
+  timeout: -0.20
+  survival_per_tick: 0.0
+  hit_opponent: 0.0
+  hit_by_opponent: 0.0

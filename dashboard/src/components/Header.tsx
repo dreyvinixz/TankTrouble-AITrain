@@ -1,6 +1,6 @@
 import React from 'react';
 import { RunSummary, TrainingProgress } from '../types/telemetry';
-import { Activity, Clock, Play, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
+import { Activity, Clock, Play, CheckCircle2, AlertTriangle, Layers, Square } from 'lucide-react';
 
 interface HeaderProps {
   runs: RunSummary[];
@@ -8,6 +8,10 @@ interface HeaderProps {
   onSelectRun: (runId: string) => void;
   telemetry: TrainingProgress | null;
   isConnected: boolean;
+  isTraining: boolean;
+  isStarting: boolean;
+  onStartTraining: () => void;
+  onStopTraining: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +20,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectRun,
   telemetry,
   isConnected,
+  isTraining,
+  isStarting,
+  onStartTraining,
+  onStopTraining,
 }) => {
   const status = telemetry?.status || 'preparing';
 
@@ -33,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
         return (
           <span className="badge badge-training">
             <span className="pulse-dot" style={{ backgroundColor: '#10b981' }} />
-            Treinando PPO
+            Treinando PPO (CUDA)
           </span>
         );
       case 'completed':
@@ -61,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
         return (
           <span className="badge badge-training" style={{ opacity: 0.7 }}>
             <Activity size={13} />
-            Preparando
+            Pronto para Treinar
           </span>
         );
     }
@@ -94,42 +102,85 @@ export const Header: React.FC<HeaderProps> = ({
               }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '2px', fontSize: '0.85rem', color: '#94a3b8' }}>
-              <span>CUDA PPO Benchmark</span>
-              <span>•</span>
-              <span>Target: Agent Smith Baseline</span>
+              <span>GTX 1650 Max-Q • PPO vs Agent Smith</span>
             </div>
           </div>
         </div>
 
-        {/* Center: Run Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Layers size={16} color="#94a3b8" />
-          <select
-            value={selectedRunId}
-            onChange={(e) => onSelectRun(e.target.value)}
+        {/* Center: Master Start Button & Run Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          {/* Master 1-Click Action Button */}
+          <button
+            onClick={isTraining ? onStopTraining : onStartTraining}
+            disabled={isStarting}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              color: '#f8fafc',
-              fontFamily: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 18px',
+              borderRadius: '10px',
+              border: isTraining ? '1px solid rgba(244, 63, 94, 0.5)' : '1px solid rgba(16, 185, 129, 0.6)',
+              background: isTraining
+                ? 'linear-gradient(135deg, rgba(244, 63, 94, 0.25) 0%, rgba(225, 29, 72, 0.15) 100%)'
+                : 'linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(6, 182, 212, 0.2) 100%)',
+              boxShadow: isTraining
+                ? '0 0 15px rgba(244, 63, 94, 0.3)'
+                : '0 0 20px rgba(16, 185, 129, 0.4)',
+              color: isTraining ? '#fb7185' : '#34d399',
+              fontWeight: 700,
               fontSize: '0.85rem',
-              outline: 'none',
-              cursor: 'pointer',
-              minWidth: '220px'
+              cursor: isStarting ? 'wait' : 'pointer',
+              transition: 'all 0.2s',
             }}
           >
-            {runs.length === 0 ? (
-              <option value="">Nenhuma run encontrada</option>
+            {isStarting ? (
+              <>
+                <Activity size={16} className="pulse-fast" />
+                <span>Iniciando CUDA...</span>
+              </>
+            ) : isTraining ? (
+              <>
+                <Square size={14} fill="#fb7185" />
+                <span>PARAR TREINAMENTO</span>
+              </>
             ) : (
-              runs.map((r) => (
-                <option key={r.run_id} value={r.run_id} style={{ background: '#0f172a', color: '#f8fafc' }}>
-                  {r.run_name} ({r.current_update}/{r.total_updates})
-                </option>
-              ))
+              <>
+                <Play size={16} fill="#34d399" />
+                <span>INICIAR TREINO AO VIVO</span>
+              </>
             )}
-          </select>
+          </button>
+
+          {/* Run Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Layers size={16} color="#94a3b8" />
+            <select
+              value={selectedRunId}
+              onChange={(e) => onSelectRun(e.target.value)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: '#f8fafc',
+                fontFamily: 'inherit',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer',
+                minWidth: '200px'
+              }}
+            >
+              {runs.length === 0 ? (
+                <option value="">Nenhuma run encontrada</option>
+              ) : (
+                runs.map((r) => (
+                  <option key={r.run_id} value={r.run_id} style={{ background: '#0a0f18', color: '#f8fafc' }}>
+                    {r.run_name} ({r.current_update}/{r.total_updates})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
 
         {/* Right: Quick Telemetry Counters */}

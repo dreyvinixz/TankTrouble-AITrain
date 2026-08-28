@@ -1,10 +1,8 @@
-"""FastAPI and WebSocket server for real-time training telemetry, metrics, and replays."""
-
-from __future__ import annotations
-
 import argparse
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Training Subprocess Controller
+_training_process: asyncio.subprocess.Process | None = None
+
 
 def get_runs_dir() -> Path:
     runs_dir = repository_root() / "runs"
@@ -36,12 +37,70 @@ async def health_check() -> dict[str, Any]:
     return {"status": "ok", "app": "TankTrouble AI Train Dashboard"}
 
 
+@app.get("/api/training/status")
+async def training_status() -> dict[str, Any]:
+    global _training_process
+    is_running = _training_process is not None and _training_process.returncode is None
+    return {
+        "is_training": is_running,
+        "pid": _training_process.pid if is_running else None,
+    }
+
+
+@app.post("/api/training/start")
+async def start_training() -> dict[str, Any]:
+    global _training_process
+    if _training_process is not None and _training_process.returncode is None:
+        return {"status": "already_running", "pid": _training_process.pid}
+
+    root = repository_root()
+    venv_python = root / ".venv-wsl" / "bin" / "python"
+    python_exe = str(venv_python) if venv_python.exists() else sys.executable
+    config_file = str(root / "config" / "training" / "ppo_live_demo_v2.yaml")
+
+    env = dict(**os.environ)
+    env["PYTHONPATH"] = f"{root / 'build'}:{root / 'python'}:{env.get('PYTHONPATH', '')}"
+
+    _training_process = await asyncio.create_subprocess_exec(
+        python_exe,
+        "-m",
+        "tanktrain.train",
+        "--config",
+        config_file,
+        cwd=str(root),
+        env=env,
+    )
+    return {"status": "started", "pid": _training_process.pid}
+
+
+@app.post("/api/training/stop")
+async def stop_training() -> dict[str, Any]:
+    global _training_process
+    if _training_process is not None and _training_process.returncode is None:
+        try:
+            _training_process.terminate()
+            await asyncio.sleep(0.5)
+            if _training_process.returncode is None:
+                _training_process.kill()
+        except Exception:
+            pass
+        _training_process = None
+        return {"status": "stopped"}
+    return {"status": "not_running"}
+
+
 @app.get("/api/runs")
 async def list_runs() -> list[dict[str, Any]]:
     runs_dir = get_runs_dir()
     runs_list = []
 
-    for run_path in sorted(runs_dir.iterdir(), reverse=True):
+    def run_mtime(p: Path) -> float:
+        try:
+            return p.stat().st_mtime
+        except Exception:
+            return 0.0
+
+    for run_path in sorted(runs_dir.iterdir(), key=run_mtime, reverse=True):
         if not run_path.is_dir():
             continue
 
@@ -179,25 +238,56 @@ async def list_run_checkpoints(run_id: str) -> list[str]:
     return [f.name for f in sorted(ckpts_dir.glob("*.pt"))]
 
 
+@app.get("/api/runs/{run_id}/live")
+async def get_live_frame(run_id: str) -> dict[str, Any]:
+    """Returns the latest decoded arena frame written by the training loop."""
+    run_path = get_runs_dir() / run_id
+    live_file = run_path / "live_frame.json"
+    if not live_file.exists():
+        return {"available": False}
+    try:
+        data = json.loads(live_file.read_text(encoding="utf-8"))
+        data["available"] = True
+        return data
+    except Exception:
+        return {"available": False}
+
+
 @app.websocket("/ws/live/{run_id}")
 async def websocket_live_telemetry(websocket: WebSocket, run_id: str) -> None:
+    """Streams both telemetry (state.json) and live arena frames (live_frame.json) at 10 fps."""
     await websocket.accept()
     run_path = get_runs_dir() / run_id
     state_file = run_path / "state.json"
-    last_mtime: float = 0.0
+    live_file = run_path / "live_frame.json"
+    last_state_mtime: float = 0.0
+    last_frame_mtime: float = 0.0
 
     try:
         while True:
+            # Telemetry update (state.json)
             if state_file.exists():
                 try:
                     mtime = state_file.stat().st_mtime
-                    if mtime != last_mtime:
-                        last_mtime = mtime
+                    if mtime != last_state_mtime:
+                        last_state_mtime = mtime
                         state_data = json.loads(state_file.read_text(encoding="utf-8"))
                         await websocket.send_json({"type": "telemetry", "data": state_data})
                 except Exception:
                     pass
-            await asyncio.sleep(0.5)
+
+            # Live arena frame update (live_frame.json) — streamed at ~10fps
+            if live_file.exists():
+                try:
+                    mtime = live_file.stat().st_mtime
+                    if mtime != last_frame_mtime:
+                        last_frame_mtime = mtime
+                        frame_data = json.loads(live_file.read_text(encoding="utf-8"))
+                        await websocket.send_json({"type": "live_frame", "data": frame_data})
+                except Exception:
+                    pass
+
+            await asyncio.sleep(0.1)  # 10 fps polling
     except (WebSocketDisconnect, asyncio.CancelledError):
         pass
 

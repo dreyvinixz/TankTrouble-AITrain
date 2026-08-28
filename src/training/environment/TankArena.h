@@ -16,6 +16,8 @@ namespace TankTrouble::training
         int maxShellsObserved = 8;
         float winReward = 1.0F;
         float lossReward = -1.0F;
+        float drawReward = 0.0F;
+        float timeoutReward = -0.20F;
         float survivalRewardPerTick = 0.002F;
         float hitOpponentReward = 0.10F;
         float hitByOpponentReward = -0.10F;

@@ -9,6 +9,24 @@ export async function fetchRuns(): Promise<RunSummary[]> {
   return res.json();
 }
 
+export async function fetchTrainingStatus(): Promise<{ is_training: boolean; pid: number | null }> {
+  const res = await fetch(`${API_BASE}/training/status`);
+  if (!res.ok) return { is_training: false, pid: null };
+  return res.json();
+}
+
+export async function startTraining(): Promise<{ status: string; pid: number }> {
+  const res = await fetch(`${API_BASE}/training/start`, { method: 'POST' });
+  if (!res.ok) throw new Error('Falha ao iniciar o treinamento');
+  return res.json();
+}
+
+export async function stopTraining(): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/training/stop`, { method: 'POST' });
+  if (!res.ok) throw new Error('Falha ao parar o treinamento');
+  return res.json();
+}
+
 export async function fetchRunState(runId: string): Promise<TrainingProgress> {
   const res = await fetch(`${API_BASE}/runs/${runId}/state`);
   if (!res.ok) throw new Error(`Falha ao obter estado da run ${runId}`);
@@ -35,7 +53,8 @@ export async function fetchReplayData(runId: string, replayId: string): Promise<
 
 export function createLiveTelemetrySocket(
   runId: string,
-  onMessage: (data: TrainingProgress) => void,
+  onTelemetry: (data: TrainingProgress) => void,
+  onLiveFrame?: (frame: any) => void,
   onError?: (err: Event) => void
 ): () => void {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -52,7 +71,9 @@ export function createLiveTelemetrySocket(
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'telemetry' && payload.data) {
-          onMessage(payload.data);
+          onTelemetry(payload.data);
+        } else if (payload.type === 'live_frame' && payload.data && onLiveFrame) {
+          onLiveFrame(payload.data);
         }
       } catch (err) {
         console.error('Erro ao processar pacote WebSocket:', err);

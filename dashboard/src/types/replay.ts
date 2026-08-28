@@ -27,6 +27,19 @@ export interface ReplayFrame {
   action: [number, number, number]; // [movement, rotation, fire]
   reward: number;
   value: number;
+  step?: number;
+  update?: number;
+  live?: boolean;
+}
+
+export interface LiveFrame extends ReplayFrame {
+  walls?: WallSegment[];
+  dimensions?: {
+    width: number;
+    height: number;
+    cols: number;
+    rows: number;
+  };
 }
 
 export interface ReplayData {

@@ -150,6 +150,8 @@ def record_replay_episode(
         survival_reward=environment_config.survival_reward,
         hit_opponent_reward=environment_config.hit_opponent_reward,
         hit_by_opponent_reward=environment_config.hit_by_opponent_reward,
+        timeout_reward=environment_config.timeout_reward,
+        draw_reward=environment_config.draw_reward,
     )
     env = TankTrainVectorEnv(eval_config)
     obs = env.reset(seed)
@@ -181,7 +183,12 @@ def record_replay_episode(
         obs = next_obs
 
         if bool(terminated[0]):
-            winner = "player" if step_reward > 0.0 else "opponent"
+            if step_reward > 0.0:
+                winner = "player"
+            elif step_reward < 0.0:
+                winner = "opponent"
+            else:
+                winner = "draw"
             break
         if bool(truncated[0]):
             winner = "timeout"
@@ -219,9 +226,11 @@ def main() -> None:
         max_decisions=int(environment_data["max_decisions"]),
         win_reward=float(environment_data["reward"]["win"]),
         loss_reward=float(environment_data["reward"]["loss"]),
-        survival_reward=float(environment_data["reward"]["survival_per_tick"]),
-        hit_opponent_reward=float(environment_data["reward"]["hit_opponent"]),
-        hit_by_opponent_reward=float(environment_data["reward"]["hit_by_opponent"]),
+        survival_reward=float(environment_data["reward"].get("survival_per_tick", 0.0)),
+        hit_opponent_reward=float(environment_data["reward"].get("hit_opponent", 0.0)),
+        hit_by_opponent_reward=float(environment_data["reward"].get("hit_by_opponent", 0.0)),
+        timeout_reward=float(environment_data["reward"].get("timeout", -0.20)),
+        draw_reward=float(environment_data["reward"].get("draw", 0.0)),
     )
 
     total_wins = total_episodes = 0
@@ -236,9 +245,11 @@ def main() -> None:
                 max_decisions=int(environment_data["max_decisions"]),
                 win_reward=float(environment_data["reward"]["win"]),
                 loss_reward=float(environment_data["reward"]["loss"]),
-                survival_reward=float(environment_data["reward"]["survival_per_tick"]),
-                hit_opponent_reward=float(environment_data["reward"]["hit_opponent"]),
-                hit_by_opponent_reward=float(environment_data["reward"]["hit_by_opponent"]),
+                survival_reward=float(environment_data["reward"].get("survival_per_tick", 0.0)),
+                hit_opponent_reward=float(environment_data["reward"].get("hit_opponent", 0.0)),
+                hit_by_opponent_reward=float(environment_data["reward"].get("hit_by_opponent", 0.0)),
+                timeout_reward=float(environment_data["reward"].get("timeout", -0.20)),
+                draw_reward=float(environment_data["reward"].get("draw", 0.0)),
             )
         )
         observation = torch.as_tensor(environment.reset(int(seed)), dtype=torch.float32, device=device)

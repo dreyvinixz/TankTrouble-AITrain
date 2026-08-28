@@ -1,0 +1,41 @@
+======================================
+ SNAPSHOT — 2026-08-28 14:50:49
+======================================
+ Run: ppo_baseline_v1_20260828T174958Z
+
+ Status   : TRAINING
+ Progresso: Update 36/200  (18.0%)  |  147,456 timesteps
+ Tempo    : 00:51 decorrido  |  ETA 03:53  |  2987 steps/s
+
+ -- Performance --
+ Recompensa : mean=+2.844  max=+3.663  min=+0.581
+ Win Rate   : 51.7%  (335 episodios concluidos)
+
+ -- PPO Losses --
+ Policy Loss  : -0.00575
+ Value Loss   : 0.00530
+ Entropy      : 2.8331
+ Approx KL    : 0.00576
+ Clip Fraction: 0.066
+ Grad Norm    : 0.3543
+ LR           : 0.0003
+
+ -- GPU --
+ Dispositivo : NVIDIA GeForce GTX 1650 with Max-Q Design
+ VRAM        : 25 / 4096 MB  (0.6%)
+ Temperatura : 68.0 C
+ Utilizacao  : 29.0 %
+
+ -- Ultimas 5 metricas --
+  Update  32: rew=+2.825  wr=52%  ep=297  pi=-0.00861  V=0.00551
+  Update  33: rew=+2.842  wr=51%  ep=308  pi=-0.00976  V=0.00306
+  Update  34: rew=+2.829  wr=51%  ep=317  pi=-0.00901  V=0.00632
+  Update  35: rew=+2.845  wr=52%  ep=326  pi=-0.00257  V=0.00358
+  Update  36: rew=+2.844  wr=52%  ep=335  pi=-0.00575  V=0.00530
+
+ Replays:
+  best.json: 47 frames | rew=+1.376 | player
+  latest.json: 47 frames | rew=+1.376 | player
+  replay_update_00001.json: 401 frames | rew=+2.400 | timeout
+  replay_update_00020.json: 47 frames | rew=+1.376 | player
+======================================

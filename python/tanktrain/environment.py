@@ -26,6 +26,8 @@ class EnvironmentConfig:
     survival_reward: float = 0.002
     hit_opponent_reward: float = 0.10
     hit_by_opponent_reward: float = -0.10
+    timeout_reward: float = -0.20
+    draw_reward: float = 0.0
 
 
 class TankTrainVectorEnv:
@@ -45,6 +47,8 @@ class TankTrainVectorEnv:
             config.survival_reward,
             config.hit_opponent_reward,
             config.hit_by_opponent_reward,
+            config.timeout_reward,
+            config.draw_reward,
         )
 
     def reset(self, seed: int | None = None) -> np.ndarray:

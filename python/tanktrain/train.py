@@ -10,11 +10,42 @@ from pathlib import Path
 import torch
 
 from .environment import EnvironmentConfig, TankTrainVectorEnv
-from .evaluate import record_replay_episode
+from .evaluate import (
+    ARENA_HEIGHT,
+    ARENA_WIDTH,
+    COLS,
+    ROWS,
+    decode_replay_frame,
+    extract_maze_walls,
+    record_replay_episode,
+)
 from .model import ActorCritic
 from .ppo import PPO, PPOConfig
 from .runtime import git_revision, load_yaml, repository_root, require_cuda, seed_everything, write_json
 from .telemetry import TelemetryTracker
+
+
+def _write_live_frame(
+    run_directory: Path,
+    obs_np: "np.ndarray",
+    action: list[int] | None = None,
+    value: float = 0.0,
+    update: int = 1,
+    step: int = 0,
+) -> None:
+    """Write the current decoded arena state as live_frame.json for real-time dashboard streaming."""
+    import numpy as np
+    try:
+        frame = decode_replay_frame(obs_np, action=action, value=value, step_idx=step)
+        frame["walls"] = extract_maze_walls(obs_np)
+        frame["dimensions"] = {"width": ARENA_WIDTH, "height": ARENA_HEIGHT, "cols": COLS, "rows": ROWS}
+        frame["update"] = update
+        frame["live"] = True
+        tmp = run_directory / "live_frame.tmp"
+        tmp.write_text(json.dumps(frame), encoding="utf-8")
+        tmp.rename(run_directory / "live_frame.json")  # atomic replace
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -36,9 +67,11 @@ def main() -> None:
         max_decisions=int(environment_data["max_decisions"]),
         win_reward=float(environment_data["reward"]["win"]),
         loss_reward=float(environment_data["reward"]["loss"]),
-        survival_reward=float(environment_data["reward"]["survival_per_tick"]),
-        hit_opponent_reward=float(environment_data["reward"]["hit_opponent"]),
-        hit_by_opponent_reward=float(environment_data["reward"]["hit_by_opponent"]),
+        survival_reward=float(environment_data["reward"].get("survival_per_tick", 0.0)),
+        hit_opponent_reward=float(environment_data["reward"].get("hit_opponent", 0.0)),
+        hit_by_opponent_reward=float(environment_data["reward"].get("hit_by_opponent", 0.0)),
+        timeout_reward=float(environment_data["reward"].get("timeout", -0.20)),
+        draw_reward=float(environment_data["reward"].get("draw", 0.0)),
     )
     environment = TankTrainVectorEnv(environment_config)
     observation = torch.as_tensor(environment.reset(seed), dtype=torch.float32, device=device)
@@ -96,7 +129,21 @@ def main() -> None:
     try:
         with history_path.open("w", encoding="utf-8") as history:
             for update in range(1, int(config["total_updates"]) + 1):
-                observation, batch, rollout_metrics = ppo.collect(environment, observation)
+                def _live_step(obs_np, action, value, step_idx):
+                    _write_live_frame(
+                        run_directory,
+                        obs_np,
+                        action=action,
+                        value=value,
+                        update=update,
+                        step=update * int(config["rollout_steps"]) + step_idx,
+                    )
+
+                observation, batch, rollout_metrics = ppo.collect(
+                    environment,
+                    observation,
+                    step_callback=_live_step,
+                )
                 update_metrics = ppo.update(batch)
                 raw_metrics = {**rollout_metrics, **update_metrics}
 
