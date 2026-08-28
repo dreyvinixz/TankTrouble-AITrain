@@ -41,6 +41,10 @@
 # Local editor settings
 /.idea/
 /.vscode/
+/.venv-wsl/
+/python/.pytest_cache/
+**/__pycache__/
+*.py[cod]
 
 # Test, training, and generated experiment outputs
 /outputs/

@@ -26,3 +26,6 @@ jobs:
 
       - name: Build
         run: cmake --build build --target TankTroubleAITrain --parallel
+
+      - name: Test deterministic arena
+        run: cmake --build build --target TankTrainEnvironmentTests --parallel && ctest --test-dir build --output-on-failure

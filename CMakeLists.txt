@@ -3,6 +3,8 @@ project(TankTroubleAITrain VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Debug)
+option(TANKTRAIN_BUILD_PYTHON_BINDINGS "Build the pybind11 training environment module" OFF)
+option(TANKTRAIN_BUILD_TESTS "Build deterministic training-environment tests" ON)
 set(TANK_TRAIN_SRC
         src/app/main.cc
         src/app/Window.cc
@@ -45,3 +47,21 @@ link_libraries(${GTKMM_LIBRARIES} reactor net pthread)
 
 file(COPY ${CMAKE_SOURCE_DIR}/res/entry.jpg DESTINATION ${CMAKE_BINARY_DIR})
 add_executable(TankTroubleAITrain ${TANK_TRAIN_SRC})
+
+add_library(tanktrain_arena STATIC src/training/environment/TankArena.cc)
+target_include_directories(tanktrain_arena PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+if(TANKTRAIN_BUILD_TESTS)
+    enable_testing()
+    add_executable(TankTrainEnvironmentTests tests/training/test_tank_arena.cc)
+    target_link_libraries(TankTrainEnvironmentTests PRIVATE tanktrain_arena)
+    add_test(NAME tanktrain_environment COMMAND TankTrainEnvironmentTests)
+endif()
+
+if(TANKTRAIN_BUILD_PYTHON_BINDINGS)
+    find_package(pybind11 CONFIG REQUIRED)
+    pybind11_add_module(tanktrain_env src/training/bindings/pybind_module.cc)
+    target_link_libraries(tanktrain_env PRIVATE tanktrain_arena)
+    target_include_directories(tanktrain_env PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(tanktrain_env PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()

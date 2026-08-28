@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tanktrain"
+version = "0.1.0"
+description = "CUDA PPO training tools for TankTrouble AI Train"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy>=1.26",
+  "PyYAML>=6.0",
+  "torch>=2.5",
+]
+
+[tool.setuptools]
+packages = ["tanktrain"]

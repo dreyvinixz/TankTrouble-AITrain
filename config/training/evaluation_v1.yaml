@@ -1,0 +1,4 @@
+device: cuda
+episodes_per_seed: 32
+held_out_seeds: [101, 211, 307, 401, 509]
+deterministic_policy: true
