@@ -59,7 +59,7 @@ export const App: React.FC = () => {
         setMetrics(metricsData);
         setReplays(replaysData);
 
-        // Load latest replay if available
+        // Load latest/best replay if available
         if (replaysData.length > 0) {
           const replayContent = await fetchReplayData(selectedRunId, replaysData[0].replay_id);
           setSelectedReplay(replayContent);

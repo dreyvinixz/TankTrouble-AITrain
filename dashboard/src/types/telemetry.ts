@@ -21,6 +21,7 @@ export interface NeuralActivationSnapshot {
     mean: number;
     max: number;
     sparsity: number;
+    sample_neurons?: number[];
   }>;
   action_probabilities: {
     movement?: number[]; // [idle, forward, backward]

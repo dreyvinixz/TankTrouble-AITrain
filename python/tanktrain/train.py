@@ -91,46 +91,59 @@ def main() -> None:
         run_directory=run_directory,
     )
 
+    best_reward = float("-inf")
     history_path = run_directory / "metrics.jsonl"
     try:
         with history_path.open("w", encoding="utf-8") as history:
             for update in range(1, int(config["total_updates"]) + 1):
                 observation, batch, rollout_metrics = ppo.collect(environment, observation)
                 update_metrics = ppo.update(batch)
-                metrics = {"update": update, **rollout_metrics, **update_metrics}
+                raw_metrics = {**rollout_metrics, **update_metrics}
 
                 # Update live telemetry state & inspect network
-                tracker.update(update, metrics, model=model, sample_obs=observation[:1])
+                progress = tracker.update(update, raw_metrics, model=model, sample_obs=observation[:1])
+                full_metrics = {"update": update, **progress.latest_metrics}
 
-                history.write(json.dumps(metrics, sort_keys=True) + "\n")
+                history.write(json.dumps(full_metrics, sort_keys=True) + "\n")
                 history.flush()
 
                 if update == 1 or update % int(config["checkpoint_interval"]) == 0 or update == int(config["total_updates"]):
+                    tracker.set_status("evaluating")
+                    ckpt_payload = {
+                        "model": model.state_dict(),
+                        "hidden_sizes": hidden_sizes,
+                        "observation_size": environment.observation_size,
+                        "environment_config": environment_data,
+                        "training_config": config,
+                        "update": update,
+                        "mean_reward": progress.mean_reward,
+                        "win_rate": progress.win_rate,
+                    }
                     ckpt_path = checkpoints_dir / f"policy_{update:05d}.pt"
-                    torch.save(
-                        {
-                            "model": model.state_dict(),
-                            "hidden_sizes": hidden_sizes,
-                            "observation_size": environment.observation_size,
-                            "environment_config": environment_data,
-                            "training_config": config,
-                            "update": update,
-                        },
-                        ckpt_path,
-                    )
+                    torch.save(ckpt_payload, ckpt_path)
 
-                    # Generate deterministic replay snapshot
+                    # Generate evaluation replay
                     try:
+                        eval_seed = seed + update * 31
                         replay_data = record_replay_episode(
-                            model, environment_config, seed=seed + 77, device=device, max_steps=400
+                            model, environment_config, seed=eval_seed, device=device, max_steps=400
                         )
-                        replay_file = replays_dir / f"replay_{update:05d}.json"
+                        replay_data["update"] = update
+                        replay_file = replays_dir / f"replay_update_{update:05d}.json"
                         write_json(replay_file, replay_data)
                         write_json(replays_dir / "latest.json", replay_data)
+
+                        # Check if this is the best validated checkpoint
+                        if progress.mean_reward >= best_reward:
+                            best_reward = progress.mean_reward
+                            torch.save(ckpt_payload, checkpoints_dir / "policy_best.pt")
+                            write_json(replays_dir / "best.json", replay_data)
                     except Exception as replay_err:
                         print(f"Warning: could not record replay snapshot: {replay_err}")
 
-                print(json.dumps(metrics, sort_keys=True))
+                    tracker.set_status("training" if update < int(config["total_updates"]) else "completed")
+
+                print(json.dumps(full_metrics, sort_keys=True))
 
         tracker.set_status("completed")
     except Exception as exc:

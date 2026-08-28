@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import collections
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -10,7 +11,6 @@ from typing import Any
 
 import torch
 
-# Try importing pynvml for zero-subprocess GPU metrics
 try:
     import pynvml
 
@@ -22,15 +22,15 @@ except Exception:
 
 @dataclass
 class GpuMetrics:
-    device_name: str = "Unknown"
+    device_name: str = ""
     cuda_available: bool = False
     vram_allocated_mb: float = 0.0
     vram_reserved_mb: float = 0.0
     vram_total_mb: float = 0.0
     vram_percent: float = 0.0
-    gpu_utilization_percent: float = 0.0
-    temperature_c: float = 0.0
-    power_w: float = 0.0
+    gpu_utilization_percent: float | None = None
+    temperature_c: float | None = None
+    power_w: float | None = None
 
 
 def collect_gpu_metrics(device_index: int = 0) -> GpuMetrics:
@@ -57,7 +57,7 @@ def collect_gpu_metrics(device_index: int = 0) -> GpuMetrics:
             try:
                 metrics.power_w = round(pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0, 1)
             except Exception:
-                metrics.power_w = 0.0
+                metrics.power_w = None
         except Exception:
             pass
 
@@ -67,7 +67,7 @@ def collect_gpu_metrics(device_index: int = 0) -> GpuMetrics:
 @dataclass
 class NeuralActivationSnapshot:
     input_groups: dict[str, list[float]] = field(default_factory=dict)
-    hidden_activations: list[dict[str, float]] = field(default_factory=list)
+    hidden_activations: list[dict[str, Any]] = field(default_factory=list)
     action_probabilities: dict[str, list[float]] = field(default_factory=dict)
     predicted_value: float = 0.0
 
@@ -115,12 +115,20 @@ class TelemetryTracker:
         self.steps_per_update = rollout_steps * num_envs
         self.total_timesteps = 0
 
+        self._reward_history = collections.deque(maxlen=100)
+        self._win_history = collections.deque(maxlen=100)
+        self._total_episodes = 0
+        self._max_reward = float("-inf")
+        self._min_reward = float("inf")
+        self._last_gpu_poll = 0.0
+        self._cached_gpu = collect_gpu_metrics()
+
         self.progress = TrainingProgress(
             run_name=run_name,
             start_time=self.start_time,
             total_updates=total_updates,
             status="preparing",
-            gpu=collect_gpu_metrics(),
+            gpu=self._cached_gpu,
         )
         self.save_state()
 
@@ -145,6 +153,20 @@ class TelemetryTracker:
         sps = self.steps_per_update / step_duration
         ups = 1.0 / step_duration
 
+        # Accumulate episodic statistics
+        episodes_in_batch = int(metrics.get("completed_episodes", metrics.get("episodes", 0)))
+        if episodes_in_batch > 0:
+            batch_reward = float(metrics.get("completed_reward", metrics.get("mean_reward", 0.0)))
+            batch_win_rate = float(metrics.get("win_rate", 0.0))
+            self._reward_history.append(batch_reward)
+            self._win_history.append(batch_win_rate)
+            self._total_episodes += episodes_in_batch
+            self._max_reward = max(self._max_reward, batch_reward)
+            self._min_reward = min(self._min_reward, batch_reward)
+
+        current_mean_reward = float(sum(self._reward_history) / len(self._reward_history)) if self._reward_history else float(metrics.get("mean_reward", 0.0))
+        current_win_rate = float(sum(self._win_history) / len(self._win_history)) if self._win_history else float(metrics.get("win_rate", 0.0))
+
         self.progress.status = "training" if update < self.total_updates else "completed"
         self.progress.elapsed_seconds = round(duration_since_start, 1)
         self.progress.eta_seconds = round(eta_seconds, 1)
@@ -154,11 +176,11 @@ class TelemetryTracker:
         self.progress.steps_per_second = round(sps, 1)
         self.progress.updates_per_second = round(ups, 2)
 
-        self.progress.mean_reward = float(metrics.get("mean_reward", 0.0))
-        self.progress.max_reward = float(metrics.get("max_reward", 0.0))
-        self.progress.min_reward = float(metrics.get("min_reward", 0.0))
-        self.progress.win_rate = float(metrics.get("win_rate", 0.0))
-        self.progress.total_episodes = int(metrics.get("episodes", 0))
+        self.progress.mean_reward = round(current_mean_reward, 3)
+        self.progress.max_reward = round(self._max_reward if self._max_reward != float("-inf") else current_mean_reward, 3)
+        self.progress.min_reward = round(self._min_reward if self._min_reward != float("inf") else current_mean_reward, 3)
+        self.progress.win_rate = round(current_win_rate, 4)
+        self.progress.total_episodes = self._total_episodes
 
         self.progress.policy_loss = float(metrics.get("policy_loss", 0.0))
         self.progress.value_loss = float(metrics.get("value_loss", 0.0))
@@ -168,12 +190,32 @@ class TelemetryTracker:
         self.progress.grad_norm = float(metrics.get("grad_norm", 0.0))
         self.progress.learning_rate = float(metrics.get("learning_rate", 0.0))
 
-        self.progress.gpu = collect_gpu_metrics()
-        self.progress.latest_metrics = metrics
+        # Periodic GPU metrics poll (every 1s) to prevent overhead
+        if now - self._last_gpu_poll > 1.0:
+            self._cached_gpu = collect_gpu_metrics()
+            self._last_gpu_poll = now
+        self.progress.gpu = self._cached_gpu
 
-        # Inspect neural activations if sample observation is provided
-        if model is not None and sample_obs is not None:
+        # Neural activation inspection
+        if model is not None and sample_obs is not None and (update == 1 or update % 5 == 0 or update == self.total_updates):
             self.progress.neural = self._inspect_network(model, sample_obs)
+
+        # Standardized metrics payload for live charts
+        self.progress.latest_metrics = {
+            "update": update,
+            "mean_reward": self.progress.mean_reward,
+            "max_reward": self.progress.max_reward,
+            "min_reward": self.progress.min_reward,
+            "win_rate": self.progress.win_rate,
+            "policy_loss": self.progress.policy_loss,
+            "value_loss": self.progress.value_loss,
+            "entropy": self.progress.entropy,
+            "approx_kl": self.progress.approx_kl,
+            "clip_fraction": self.progress.clip_fraction,
+            "grad_norm": self.progress.grad_norm,
+            "learning_rate": self.progress.learning_rate,
+            "episodes": self.progress.total_episodes,
+        }
 
         self.save_state()
         return self.progress
@@ -186,9 +228,9 @@ class TelemetryTracker:
         snapshot = NeuralActivationSnapshot()
         try:
             obs = observation[:1] if observation.ndim == 2 else observation.unsqueeze(0)
-            obs_flat = obs.squeeze(0).detach().cpu().numpy().tolist()
+            obs_flat = [float(x) for x in obs.squeeze(0).detach().cpu().numpy().tolist()]
 
-            # Breakdown 376 inputs: 12 tank, 56 shells (8x7), 308 maze (77x4)
+            # 376 inputs breakdown according to contract:
             snapshot.input_groups = {
                 "tank_features": obs_flat[:12] if len(obs_flat) >= 12 else obs_flat,
                 "shell_sensors": obs_flat[12:68] if len(obs_flat) >= 68 else [],
@@ -200,24 +242,27 @@ class TelemetryTracker:
                 snapshot.predicted_value = round(float(value.squeeze().item()), 4)
 
                 snapshot.action_probabilities = {
-                    "movement": distributions[0].probs.squeeze(0).cpu().numpy().round(4).tolist(),
-                    "rotation": distributions[1].probs.squeeze(0).cpu().numpy().round(4).tolist(),
-                    "fire": distributions[2].probs.squeeze(0).cpu().numpy().round(4).tolist(),
+                    "movement": [float(x) for x in distributions[0].probs.squeeze(0).cpu().numpy().round(4).tolist()],
+                    "rotation": [float(x) for x in distributions[1].probs.squeeze(0).cpu().numpy().round(4).tolist()],
+                    "fire": [float(x) for x in distributions[2].probs.squeeze(0).cpu().numpy().round(4).tolist()],
                 }
 
-                # Extract hidden layer mean and max activations
+                # Capture hidden activations distribution
                 if hasattr(model, "backbone"):
                     current = obs
-                    for i, layer in enumerate(model.backbone):
+                    for layer in model.backbone:
                         current = layer(current)
-                        if isinstance(layer, torch.nn.Tanh) or isinstance(layer, torch.nn.ReLU):
+                        if isinstance(layer, (torch.nn.Tanh, torch.nn.ReLU)):
                             act = current.squeeze(0).cpu().numpy()
+                            # Sample 16 neuron activation levels across the 256 layer for UI rendering
+                            sample_neurons = [float(act[idx]) for idx in range(0, len(act), max(1, len(act) // 16))][:16]
                             snapshot.hidden_activations.append(
                                 {
                                     "layer": f"hidden_{len(snapshot.hidden_activations) + 1}",
                                     "mean": round(float(act.mean()), 4),
                                     "max": round(float(act.max()), 4),
                                     "sparsity": round(float((act > 0).mean()), 4),
+                                    "sample_neurons": sample_neurons,
                                 }
                             )
         except Exception:

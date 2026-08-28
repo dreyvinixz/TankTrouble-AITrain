@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 from typing import Any
 
@@ -13,39 +14,83 @@ from .environment import EnvironmentConfig, TankTrainVectorEnv
 from .model import ActorCritic
 from .runtime import load_yaml, repository_root, require_cuda, write_json
 
+# Arena physical constants matching TankArena.cc
+ARENA_WIDTH = 660.0
+ARENA_HEIGHT = 420.0
+CELL_SIZE = 60.0
+COLS = 11
+ROWS = 7
 
-def decode_replay_frame(obs: np.ndarray, action: list[int] | None = None, reward: float = 0.0, value: float = 0.0) -> dict[str, Any]:
-    """Decode a 376-element observation into a structured visual frame for the Canvas 2D player."""
-    width, height = 660.0, 420.0
+
+def decode_replay_frame(
+    obs: np.ndarray,
+    action: list[int] | None = None,
+    reward: float = 0.0,
+    value: float = 0.0,
+    step_idx: int = 0,
+) -> dict[str, Any]:
+    """Decode a 376-element observation into a structured visual frame according to the exact TankArena.cc contract."""
+    # 1. Player Tank (indices 0..5): x/width, y/height, sin(angle), cos(angle), ammo/5, alive
+    player_x = float(obs[0]) * ARENA_WIDTH
+    player_y = float(obs[1]) * ARENA_HEIGHT
+    player_sin = float(obs[2])
+    player_cos = float(obs[3])
+    player_angle = math.degrees(math.atan2(player_sin, player_cos)) % 360.0
+    player_ammo = int(round(float(obs[4]) * 5.0))
+    player_alive = bool(obs[5] > 0.5)
+
     player = {
-        "x": round(float(obs[0]) * width, 1),
-        "y": round(float(obs[1]) * height, 1),
-        "angle": round(float(obs[2]) * 360.0, 1),
-        "ammo": int(round(float(obs[3]) * 5.0)),
-    }
-    opponent = {
-        "x": round(float(obs[4]) * width, 1),
-        "y": round(float(obs[5]) * height, 1),
-        "angle": round(float(obs[6]) * 360.0, 1),
-        "ammo": int(round(float(obs[7]) * 5.0)),
+        "x": round(player_x, 1),
+        "y": round(player_y, 1),
+        "angle": round(player_angle, 1),
+        "ammo": max(0, min(5, player_ammo)),
+        "alive": player_alive,
     }
 
+    # 2. Opponent Tank (indices 6..11): x/width, y/height, sin(angle), cos(angle), ammo/5, alive
+    opponent_x = float(obs[6]) * ARENA_WIDTH
+    opponent_y = float(obs[7]) * ARENA_HEIGHT
+    opponent_sin = float(obs[8])
+    opponent_cos = float(obs[9])
+    opponent_angle = math.degrees(math.atan2(opponent_sin, opponent_cos)) % 360.0
+    opponent_ammo = int(round(float(obs[10]) * 5.0))
+    opponent_alive = bool(obs[11] > 0.5)
+
+    opponent = {
+        "x": round(opponent_x, 1),
+        "y": round(opponent_y, 1),
+        "angle": round(opponent_angle, 1),
+        "ammo": max(0, min(5, opponent_ammo)),
+        "alive": opponent_alive,
+    }
+
+    # 3. Active Shells (indices 12..67 = 8 shells * 7 features each)
     shells = []
-    # 8 shells * 7 features each, starting at index 12
     for i in range(8):
         base = 12 + i * 7
-        if base + 6 < len(obs) and obs[base] > 0.5:
-            shells.append(
-                {
-                    "x": round(float(obs[base + 1]) * width, 1),
-                    "y": round(float(obs[base + 2]) * height, 1),
-                    "angle": round(float(obs[base + 3]) * 360.0, 1),
-                    "owner": int(round(float(obs[base + 4]))),
-                    "ttl": int(round(float(obs[base + 5]) * 180.0)),
-                }
-            )
+        if base + 6 < len(obs):
+            active = obs[base + 6] > 0.5
+            if active:
+                shell_x = player_x + float(obs[base + 0]) * ARENA_WIDTH
+                shell_y = player_y + float(obs[base + 1]) * ARENA_HEIGHT
+                shell_sin = float(obs[base + 2])
+                shell_cos = float(obs[base + 3])
+                shell_angle = math.degrees(math.atan2(shell_sin, shell_cos)) % 360.0
+                shell_owner = 0 if obs[base + 4] > 0.0 else 1
+                shell_ttl = int(round(float(obs[base + 5]) * 180.0))
+
+                shells.append(
+                    {
+                        "x": round(shell_x, 1),
+                        "y": round(shell_y, 1),
+                        "angle": round(shell_angle, 1),
+                        "owner": shell_owner,
+                        "ttl": max(0, shell_ttl),
+                    }
+                )
 
     return {
+        "step": step_idx,
         "player": player,
         "opponent": opponent,
         "shells": shells,
@@ -56,39 +101,33 @@ def decode_replay_frame(obs: np.ndarray, action: list[int] | None = None, reward
 
 
 def extract_maze_walls(obs: np.ndarray) -> list[dict[str, float]]:
-    """Extract maze walls from the 308-element wall mask in observation."""
+    """Extract unique line segments representing maze walls from the 308-element wall mask."""
     walls = []
-    cell_w, cell_h = 60.0, 60.0
-    cols, rows = 11, 7
     base = 68
 
     # Outer boundary walls
-    walls.append({"x1": 0.0, "y1": 0.0, "x2": 660.0, "y2": 0.0})
-    walls.append({"x1": 660.0, "y1": 0.0, "x2": 660.0, "y2": 420.0})
-    walls.append({"x1": 660.0, "y1": 420.0, "x2": 0.0, "y2": 420.0})
-    walls.append({"x1": 0.0, "y1": 420.0, "x2": 0.0, "y2": 0.0})
+    walls.append({"x1": 0.0, "y1": 0.0, "x2": ARENA_WIDTH, "y2": 0.0})
+    walls.append({"x1": ARENA_WIDTH, "y1": 0.0, "x2": ARENA_WIDTH, "y2": ARENA_HEIGHT})
+    walls.append({"x1": ARENA_WIDTH, "y1": ARENA_HEIGHT, "x2": 0.0, "y2": ARENA_HEIGHT})
+    walls.append({"x1": 0.0, "y1": ARENA_HEIGHT, "x2": 0.0, "y2": 0.0})
 
-    for cell in range(cols * rows):
-        col = cell % cols
-        row = cell // cols
-        cx = col * cell_w
-        cy = row * cell_h
+    # Internal cell walls
+    for cell in range(COLS * ROWS):
+        col = cell % COLS
+        row = cell // COLS
+        cx = col * CELL_SIZE
+        cy = row * CELL_SIZE
 
         # 4 directions: 0=North, 1=East, 2=South, 3=West
-        if base + cell * 4 + 3 < len(obs):
-            north = obs[base + cell * 4 + 0] > 0.5
-            east = obs[base + cell * 4 + 1] > 0.5
-            south = obs[base + cell * 4 + 2] > 0.5
-            west = obs[base + cell * 4 + 3] > 0.5
+        idx = base + cell * 4
+        if idx + 3 < len(obs):
+            north = obs[idx + 0] > 0.5
+            east = obs[idx + 1] > 0.5
 
             if north and row > 0:
-                walls.append({"x1": cx, "y1": cy, "x2": cx + cell_w, "y2": cy})
-            if east and col < cols - 1:
-                walls.append({"x1": cx + cell_w, "y1": cy, "x2": cx + cell_w, "y2": cy + cell_h})
-            if south and row < rows - 1:
-                walls.append({"x1": cx, "y1": cy + cell_h, "x2": cx + cell_w, "y2": cy + cell_h})
-            if west and col > 0:
-                walls.append({"x1": cx, "y1": cy, "x2": cx, "y2": cy + cell_h})
+                walls.append({"x1": cx, "y1": cy, "x2": cx + CELL_SIZE, "y2": cy})
+            if east and col < COLS - 1:
+                walls.append({"x1": cx + CELL_SIZE, "y1": cy, "x2": cx + CELL_SIZE, "y2": cy + CELL_SIZE})
 
     return walls
 
@@ -100,7 +139,7 @@ def record_replay_episode(
     device: torch.device,
     max_steps: int = 600,
 ) -> dict[str, Any]:
-    """Simulate a single deterministic evaluation match and return the replay trace."""
+    """Simulate a single deterministic evaluation match and return the complete replay trace."""
     eval_config = EnvironmentConfig(
         seed=seed,
         num_envs=1,
@@ -117,11 +156,11 @@ def record_replay_episode(
     raw_obs = obs[0]
 
     walls = extract_maze_walls(raw_obs)
-    frames = [decode_replay_frame(raw_obs)]
+    frames = [decode_replay_frame(raw_obs, step_idx=0)]
     total_reward = 0.0
     winner = "draw"
 
-    for step_idx in range(max_steps):
+    for step_idx in range(1, max_steps + 1):
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=device)
         with torch.no_grad():
             distributions, value = model(obs_tensor)
@@ -135,7 +174,9 @@ def record_replay_episode(
         step_reward = float(reward[0])
         total_reward += step_reward
 
-        frame = decode_replay_frame(next_obs[0], action=action_list, reward=step_reward, value=val)
+        frame = decode_replay_frame(
+            next_obs[0], action=action_list, reward=step_reward, value=val, step_idx=step_idx
+        )
         frames.append(frame)
         obs = next_obs
 
@@ -151,7 +192,7 @@ def record_replay_episode(
         "total_frames": len(frames),
         "total_reward": round(total_reward, 3),
         "winner": winner,
-        "dimensions": {"width": 660, "height": 420, "cols": 11, "rows": 7},
+        "dimensions": {"width": int(ARENA_WIDTH), "height": int(ARENA_HEIGHT), "cols": COLS, "rows": ROWS},
         "walls": walls,
         "frames": frames,
     }

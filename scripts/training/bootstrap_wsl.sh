@@ -34,6 +34,6 @@ if ! python -m pip --version >/dev/null 2>&1; then
 fi
 python -m pip install --upgrade pip
 python -m pip install --index-url https://download.pytorch.org/whl/cu126 torch
-python -m pip install numpy PyYAML pybind11
-python -m pip install -e python --no-deps
+python -m pip install -r python/requirements-cuda.txt
+python -m pip install -e python
 echo "Environment created. Next: source scripts/wsl_cuda_env.sh && scripts/training/verify_cuda.sh"

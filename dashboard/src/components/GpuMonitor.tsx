@@ -7,8 +7,9 @@ interface GpuMonitorProps {
 }
 
 export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
-  const vramPercent = gpu?.vram_percent || 0;
   const isCuda = gpu?.cuda_available ?? false;
+  const vramPercent = isCuda ? (gpu?.vram_percent || 0) : 0;
+  const deviceName = isCuda ? (gpu?.device_name || 'Dispositivo CUDA Detectado') : 'Executando em CPU';
 
   return (
     <div className="glass-card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -22,11 +23,11 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
         </div>
         <span style={{
           fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px',
-          backgroundColor: isCuda ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
-          color: isCuda ? '#34d399' : '#fb7185',
-          border: `1px solid ${isCuda ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`
+          backgroundColor: isCuda ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+          color: isCuda ? '#34d399' : '#fbbf24',
+          border: `1px solid ${isCuda ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
         }}>
-          {isCuda ? 'CUDA 12.6 ATIVO' : 'CPU ONLY'}
+          {isCuda ? 'CUDA 12.6 ATIVO' : 'GPU INATIVA'}
         </span>
       </div>
 
@@ -41,8 +42,8 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
         justifyContent: 'space-between'
       }}>
         <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Dispositivo:</span>
-        <span className="mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
-          {gpu?.device_name || 'NVIDIA GeForce GTX 1650 Max-Q'}
+        <span className="mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: isCuda ? '#38bdf8' : '#94a3b8' }}>
+          {deviceName}
         </span>
       </div>
 
@@ -53,7 +54,7 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
             <HardDrive size={13} color="#94a3b8" /> VRAM Alocada
           </span>
           <span className="mono" style={{ color: '#f8fafc', fontWeight: 600 }}>
-            {gpu?.vram_allocated_mb ?? 0} MB / {gpu?.vram_total_mb ?? 4096} MB ({vramPercent}%)
+            {isCuda ? `${gpu?.vram_allocated_mb ?? 0} MB / ${gpu?.vram_total_mb ?? 0} MB (${vramPercent}%)` : '0 MB (N/A)'}
           </span>
         </div>
         <div className="progress-bar">
@@ -68,14 +69,14 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
         </div>
       </div>
 
-      {/* Stats Grid: Utilization, Temp, Power */}
+      {/* Stats Grid: Utilization, Temp, Reserved */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
           <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
             <Zap size={11} color="#fbbf24" /> USO GPU
           </div>
-          <div className="mono" style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
-            {gpu?.gpu_utilization_percent ? `${gpu.gpu_utilization_percent}%` : 'N/A'}
+          <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
+            {gpu?.gpu_utilization_percent != null ? `${gpu.gpu_utilization_percent}%` : (isCuda ? 'Ativa' : 'N/A')}
           </div>
         </div>
 
@@ -83,8 +84,8 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
           <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
             <Thermometer size={11} color="#f87171" /> TEMP
           </div>
-          <div className="mono" style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
-            {gpu?.temperature_c ? `${gpu.temperature_c} °C` : '< 55 °C'}
+          <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
+            {gpu?.temperature_c != null ? `${gpu.temperature_c} °C` : 'N/A'}
           </div>
         </div>
 
@@ -92,7 +93,7 @@ export const GpuMonitor: React.FC<GpuMonitorProps> = ({ gpu }) => {
           <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
             <HardDrive size={11} color="#a78bfa" /> RESERVADO
           </div>
-          <div className="mono" style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
+          <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
             {gpu?.vram_reserved_mb ? `${gpu.vram_reserved_mb} MB` : 'N/A'}
           </div>
         </div>

@@ -51,8 +51,8 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = 660;
-    const height = 420;
+    const width = selectedReplay.dimensions?.width || 660;
+    const height = selectedReplay.dimensions?.height || 420;
     canvas.width = width;
     canvas.height = height;
 
@@ -79,11 +79,11 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
     }
 
     // 2. Draw Maze Walls
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = '#475569';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(51, 65, 85, 0.5)';
-    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgba(71, 85, 105, 0.6)';
+    ctx.shadowBlur = 6;
 
     for (const wall of selectedReplay.walls) {
       ctx.beginPath();
@@ -94,48 +94,52 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
     ctx.shadowBlur = 0;
 
     // Helper: Draw Tank
-    const drawTank = (pose: { x: number; y: number; angle: number; ammo: number }, color: string, label: string) => {
+    const drawTank = (pose: { x: number; y: number; angle: number; ammo: number; alive?: boolean }, color: string, label: string) => {
+      const isAlive = pose.alive !== false;
       ctx.save();
       ctx.translate(pose.x, pose.y);
-      ctx.rotate((pose.angle * Math.PI) / 180);
+      // In TankArena, nextX = x + cos(rad), nextY = y - sin(rad)
+      ctx.rotate((-pose.angle * Math.PI) / 180);
 
       // Tank Body (28 x 20)
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
+      ctx.fillStyle = isAlive ? color : '#64748b';
+      ctx.shadowColor = isAlive ? color : 'transparent';
+      ctx.shadowBlur = isAlive ? 8 : 0;
       ctx.beginPath();
       ctx.roundRect(-14, -10, 28, 20, 4);
       ctx.fill();
       ctx.shadowBlur = 0;
 
       // Tank Tracks
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(-14, -12, 28, 3);
-      ctx.fillRect(-14, 9, 28, 3);
-
-      // Turret Center
       ctx.fillStyle = '#0f172a';
+      ctx.fillRect(-14, -13, 28, 4);
+      ctx.fillRect(-14, 9, 28, 4);
+
+      // Turret Base
+      ctx.fillStyle = '#020617';
       ctx.beginPath();
       ctx.arc(0, 0, 6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Cannon Barrel (points forward in angle direction)
-      ctx.fillStyle = color;
-      ctx.fillRect(0, -2, 16, 4);
+      // Cannon Barrel (pointing forward in heading direction)
+      ctx.fillStyle = isAlive ? color : '#64748b';
+      ctx.fillRect(0, -2.5, 17, 5);
 
       ctx.restore();
 
-      // Tank Label & Ammo above head
+      // Tank Label & Ammo above tank
       ctx.save();
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = isAlive ? '#f8fafc' : '#94a3b8';
       ctx.font = 'bold 10px Outfit, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(label, pose.x, pose.y - 18);
+      ctx.fillText(isAlive ? label : `${label} (Destruído)`, pose.x, pose.y - 18);
 
       // Ammo pips
-      for (let a = 0; a < 5; a++) {
-        ctx.fillStyle = a < pose.ammo ? color : 'rgba(255, 255, 255, 0.2)';
-        ctx.fillRect(pose.x - 12 + a * 5, pose.y - 14, 3, 3);
+      if (isAlive) {
+        for (let a = 0; a < 5; a++) {
+          ctx.fillStyle = a < pose.ammo ? color : 'rgba(255, 255, 255, 0.2)';
+          ctx.fillRect(pose.x - 12 + a * 5, pose.y - 14, 3, 3);
+        }
       }
       ctx.restore();
     };
@@ -144,18 +148,37 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
     drawTank(frame.player, '#10b981', 'PPO Agent');
     drawTank(frame.opponent, '#f43f5e', 'Agent Smith');
 
-    // 4. Draw Shells (Bouncing Projectiles)
+    // 4. Draw Shells (Bouncing Projectiles with glow trails)
+    // First draw motion trails from past 3 frames
+    const trailFrames = selectedReplay.frames.slice(Math.max(0, currentFrameIdx - 3), currentFrameIdx);
+    for (let tIdx = 0; tIdx < trailFrames.length; tIdx++) {
+      const pastFrame = trailFrames[tIdx];
+      const opacity = (tIdx + 1) / (trailFrames.length + 1) * 0.4;
+      for (const pastShell of pastFrame.shells) {
+        ctx.fillStyle = pastShell.owner === 0 ? `rgba(52, 211, 153, ${opacity})` : `rgba(251, 113, 133, ${opacity})`;
+        ctx.beginPath();
+        ctx.arc(pastShell.x, pastShell.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Now draw active shells for current frame
     for (const shell of frame.shells) {
       ctx.save();
       ctx.translate(shell.x, shell.y);
 
-      // Shell Glow
       const shellColor = shell.owner === 0 ? '#34d399' : '#fb7185';
       ctx.fillStyle = shellColor;
       ctx.shadowColor = shellColor;
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner bright core
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 2, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -168,7 +191,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
         <Film size={36} color="#64748b" style={{ marginBottom: '12px' }} />
         <div style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>Nenhum Replay Disponível</div>
         <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '4px', maxWidth: '400px' }}>
-          Os replays das partidas determinísticas são gravados automaticamente nos checkpoints periódicos de treino.
+          Os replays das partidas determinísticas de avaliação são gravados automaticamente nos checkpoints periódicos.
         </div>
       </div>
     );
@@ -185,7 +208,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Film size={20} color="#10b981" />
           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-            Replay da Arena 2D (Melhor Partida)
+            Replay da Arena 2D
           </span>
           <span style={{
             fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
@@ -201,7 +224,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Partida:</span>
             <select
-              value={replays.find(r => r.seed === selectedReplay.seed)?.replay_id || ''}
+              value={replays.find(r => r.replay_id.includes(String(selectedReplay.seed)) || r.total_reward === selectedReplay.total_reward)?.replay_id || replays[0].replay_id}
               onChange={(e) => onSelectReplay(e.target.value)}
               style={{
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -216,7 +239,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
             >
               {replays.map((rep) => (
                 <option key={rep.replay_id} value={rep.replay_id} style={{ background: '#0f172a', color: '#f8fafc' }}>
-                  {rep.replay_id} (Reward: {rep.total_reward > 0 ? `+${rep.total_reward}` : rep.total_reward})
+                  {rep.replay_id} • (Reward: {rep.total_reward > 0 ? `+${rep.total_reward}` : rep.total_reward} • {rep.winner})
                 </option>
               ))}
             </select>
@@ -282,7 +305,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
         <input
           type="range"
           min={0}
-          max={selectedReplay.total_frames - 1}
+          max={Math.max(0, selectedReplay.total_frames - 1)}
           value={currentFrameIdx}
           onChange={(e) => setCurrentFrameIdx(Number(e.target.value))}
           style={{ width: '100%', cursor: 'pointer' }}

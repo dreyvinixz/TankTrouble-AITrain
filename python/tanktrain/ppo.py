@@ -33,6 +33,8 @@ class PPO:
         self.device = device
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, eps=1e-5)
         self._episode_returns: torch.Tensor | None = None
+        self._episode_wins: int = 0
+        self._episode_count: int = 0
 
     def collect(
         self, environment: object, observation: torch.Tensor
@@ -45,6 +47,7 @@ class PPO:
         values: list[torch.Tensor] = []
         completed = 0
         completed_reward = 0.0
+        completed_wins = 0
 
         if self._episode_returns is None or self._episode_returns.shape[0] != observation.shape[0]:
             self._episode_returns = torch.zeros(observation.shape[0], device=self.device)
@@ -52,7 +55,8 @@ class PPO:
         for _ in range(self.config.rollout_steps):
             with torch.no_grad():
                 action, log_probability, value = self.model.sample(observation)
-            next_observation, reward, terminated, truncated = environment.step(action.cpu().numpy())
+            step_result = environment.step(action.cpu().numpy())
+            next_observation, reward, terminated, truncated = step_result[:4]
             done = terminated | truncated
             observations.append(observation)
             actions.append(action)
@@ -63,9 +67,16 @@ class PPO:
             rewards.append(reward_tensor)
             dones.append(done_tensor)
             self._episode_returns += reward_tensor
-            completed += int(done.sum())
-            completed_reward += float(self._episode_returns[done_tensor.bool()].sum())
-            self._episode_returns[done_tensor.bool()] = 0.0
+
+            if bool(done.any()):
+                done_mask = done_tensor.bool()
+                finished_rewards = self._episode_returns[done_mask]
+                completed += int(done.sum())
+                completed_reward += float(finished_rewards.sum())
+                # Player wins if terminal reward is positive (winReward > 0)
+                completed_wins += int(((reward_tensor[done_mask] > 0.0) & torch.as_tensor(terminated, device=self.device)[done_mask]).sum())
+                self._episode_returns[done_mask] = 0.0
+
             observation = torch.as_tensor(next_observation, dtype=torch.float32, device=self.device)
 
         with torch.no_grad():
@@ -91,9 +102,14 @@ class PPO:
             "return": returns.flatten(),
             "value": value_tensor.flatten(),
         }
+        mean_ret = (completed_reward / completed) if completed > 0 else 0.0
+        win_rate = (completed_wins / completed) if completed > 0 else 0.0
         metrics = {
             "completed_episodes": float(completed),
-            "completed_reward": completed_reward / max(completed, 1),
+            "completed_reward": mean_ret,
+            "mean_reward": mean_ret,
+            "win_rate": win_rate,
+            "episodes": float(completed),
         }
         return observation, batch, metrics
 
@@ -103,29 +119,45 @@ class PPO:
         batch_size = batch["observation"].shape[0]
         indices = torch.arange(batch_size, device=self.device)
         policy_loss_total = value_loss_total = entropy_total = 0.0
+        approx_kl_total = clip_fraction_total = grad_norm_total = 0.0
         updates = 0
         for _ in range(self.config.update_epochs):
             for minibatch in indices[torch.randperm(batch_size, device=self.device)].split(self.config.minibatch_size):
                 new_log_probability, entropy, value = self.model.evaluate_actions(
                     batch["observation"][minibatch], batch["action"][minibatch]
                 )
-                ratio = (new_log_probability - batch["log_probability"][minibatch]).exp()
+                log_ratio = new_log_probability - batch["log_probability"][minibatch]
+                ratio = log_ratio.exp()
                 unclipped = ratio * batch["advantage"][minibatch]
                 clipped = ratio.clamp(1.0 - self.config.clip_ratio, 1.0 + self.config.clip_ratio) * batch["advantage"][minibatch]
                 policy_loss = -torch.minimum(unclipped, clipped).mean()
                 value_loss = 0.5 * (value - batch["return"][minibatch]).square().mean()
                 entropy_loss = entropy.mean()
                 loss = policy_loss + self.config.value_coefficient * value_loss - self.config.entropy_coefficient * entropy_loss
+
+                with torch.no_grad():
+                    approx_kl = ((ratio - 1.0) - log_ratio).mean()
+                    clip_frac = ((ratio - 1.0).abs() > self.config.clip_ratio).float().mean()
+
                 self.optimizer.zero_grad(set_to_none=True)
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
+                grad_norm = nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
                 self.optimizer.step()
+
                 policy_loss_total += float(policy_loss.detach())
                 value_loss_total += float(value_loss.detach())
                 entropy_total += float(entropy_loss.detach())
+                approx_kl_total += float(approx_kl.detach())
+                clip_fraction_total += float(clip_frac.detach())
+                grad_norm_total += float(grad_norm)
                 updates += 1
+
         return {
-            "policy_loss": policy_loss_total / updates,
-            "value_loss": value_loss_total / updates,
-            "entropy": entropy_total / updates,
+            "policy_loss": policy_loss_total / max(updates, 1),
+            "value_loss": value_loss_total / max(updates, 1),
+            "entropy": entropy_total / max(updates, 1),
+            "approx_kl": approx_kl_total / max(updates, 1),
+            "clip_fraction": clip_fraction_total / max(updates, 1),
+            "grad_norm": grad_norm_total / max(updates, 1),
+            "learning_rate": float(self.optimizer.param_groups[0]["lr"]),
         }

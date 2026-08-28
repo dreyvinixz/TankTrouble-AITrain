@@ -1,6 +1,6 @@
 import React from 'react';
 import { NeuralActivationSnapshot } from '../types/telemetry';
-import { Network, Zap, Shield, Crosshair, ArrowRight, Gauge } from 'lucide-react';
+import { Network, Zap, Shield, Crosshair, ArrowRight, Gauge, Activity } from 'lucide-react';
 
 interface NeuralInspectorProps {
   neural: NeuralActivationSnapshot | undefined;
@@ -11,6 +11,7 @@ export const NeuralInspector: React.FC<NeuralInspectorProps> = ({ neural }) => {
   const rotationProbs = neural?.action_probabilities?.rotation || [0.33, 0.33, 0.34];
   const fireProbs = neural?.action_probabilities?.fire || [0.8, 0.2];
   const valueEstimate = neural?.predicted_value ?? 0.0;
+  const hiddenLayers = neural?.hidden_activations || [];
 
   const movementLabels = ['Parado', 'Avançar (Frente)', 'Recuar (Ré)'];
   const rotationLabels = ['Sem Giro', 'Giro Horário (CW)', 'Giro Anti-horário (CCW)'];
@@ -109,6 +110,45 @@ export const NeuralInspector: React.FC<NeuralInspectorProps> = ({ neural }) => {
           <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Máscara 77 células x 4 paredes N/E/S/W</div>
         </div>
       </div>
+
+      {/* Real Hidden Layer Neuron Activation Grid */}
+      {hiddenLayers.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: '#a78bfa' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Activity size={12} /> Ativações Ocultas Amostradas (256 Neurônios)
+            </span>
+            <span>Esparsidade: {((hiddenLayers[0]?.sparsity ?? 0.5) * 100).toFixed(0)}%</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {hiddenLayers.map((layer, lIdx) => (
+              <div key={lIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', minWidth: '55px' }}>{layer.layer}:</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(16, 1fr)', gap: '3px', flex: 1 }}>
+                  {(layer.sample_neurons || []).map((val: number, nIdx: number) => {
+                    const intensity = Math.min(Math.max((val + 1) / 2, 0), 1);
+                    return (
+                      <div
+                        key={nIdx}
+                        title={`Neurônio ${nIdx * 16}: ${val.toFixed(3)}`}
+                        style={{
+                          height: '14px',
+                          borderRadius: '2px',
+                          backgroundColor: val >= 0
+                            ? `rgba(139, 92, 246, ${Math.max(0.15, intensity)})`
+                            : `rgba(244, 63, 94, ${Math.max(0.15, 1 - intensity)})`,
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action Probability Bars */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>

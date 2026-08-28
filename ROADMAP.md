@@ -20,7 +20,7 @@ The GTKmm client remains a human-facing visualizer; training runs headlessly.
 | 3. Python bridge | DONE | pybind11 vector-environment module with NumPy batch I/O and contract tests. |
 | 4. CUDA PPO baseline | IN PROGRESS | PyTorch PPO policy, CUDA rollout/update path, checkpoints, and metrics logging. |
 | 5. Benchmark protocol | BACKLOG | Five seeds, fixed held-out evaluation seeds, random baseline, and experiment reports. |
-| 6. Live Dashboard & Visualizer | BACKLOG | Real-time telemetry, reward curves, GPU monitor, neural activation graph, and best-tank replay. |
+| 6. Live Dashboard & Visualizer | IN PROGRESS | Real-time telemetry, reward curves, GPU monitor, neural activation graph, and best-tank replay. |
 | 7. GPU simulation & Research | BACKLOG | Native CUDA vectorized stepping, self-play, curriculum, learned opponents, and GUI replay. |
 
 ## Live Training Dashboard & Neural Visualizer
