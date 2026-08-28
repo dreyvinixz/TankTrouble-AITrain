@@ -7,6 +7,7 @@
 #include "Shell.h"
 #include "core/Math.h"
 #include <iostream>
+#include <algorithm>
 
 namespace TankTrouble
 {
@@ -60,7 +61,6 @@ namespace TankTrouble
 
     void AgentSmith::ballisticsPredict(const PredictingShellList& shells, uint64_t globalSteps)
     {
-        int seq;
         ballistics.clear();
         for(const auto& shell: shells)
         {
@@ -79,7 +79,10 @@ namespace TankTrouble
 
     Object::PosInfo AgentSmith::getShellPosition(int id, uint64_t step)
     {
-        Ballistic ballistic = ballistics[id];
+        auto it = ballistics.find(id);
+        if(it == ballistics.end())
+            return Object::PosInfo::invalid();
+        const Ballistic& ballistic = it->second;
         for(const auto& segment : ballistic)
         {
             if(segment.end.first < step)
@@ -168,7 +171,7 @@ namespace TankTrouble
         }
         if(strategies.empty())
             return {};
-        sort(strategies.begin(), strategies.end());
+        std::sort(strategies.begin(), strategies.end());
         return strategies[0];
     }
 
@@ -458,7 +461,7 @@ namespace TankTrouble
         }
         if(threats.empty())
             return;
-        sort(threats.begin(), threats.end(), segmentCmp);
+        std::sort(threats.begin(), threats.end(), segmentCmp);
 
         BallisticSegment closest = threats[0];
         if(closest.shellId != prevThreat.shellId || closest.seq != prevThreat.seq)
@@ -485,7 +488,6 @@ namespace TankTrouble
         if(!stop)
             *finalStrategy = tryRotatingWithMoving(globalSteps);
 
-        std::cout << *finalStrategy << threats[0].shellId << " " << threats[0].seq << std::endl;
         ctl->updateStrategy(finalStrategy);
     }
 

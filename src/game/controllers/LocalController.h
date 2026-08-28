@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include "Controller.h"
 #include "Object.h"
 #include "core/Vec.h"
@@ -61,7 +62,7 @@ namespace TankTrouble
             template<typename T1, typename T2>
             size_t operator()(const std::pair<T1, T2>& p) const
             {
-                return std::hash<T1>()(p.first) ^ std::hash<T2>()(p.second);
+                return std::hash<T1>()(p.first) ^ (std::hash<T2>()(p.second) << 16);
             }
         };
         static std::vector<Object::PosInfo> getRandomPositions(int num);

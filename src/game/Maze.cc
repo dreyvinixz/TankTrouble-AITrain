@@ -5,25 +5,27 @@
 #include "Maze.h"
 #include "core/Math.h"
 #include <cstring>
+#include <utility>
 
 namespace TankTrouble
 {
     static int dx[] = {0, -1, 0, 1};
     static int dy[] = {-1, 0, 1, 0};
-    int vis[HORIZON_GRID_NUMBER][VERTICAL_GRID_NUMBER];
 
     void Maze::generate()
     {
         map = std::vector(MAX_GRID_ID, std::vector<int>(MAX_GRID_ID, 0));
-        memset(vis, 0 ,sizeof(vis));
+        int vis[HORIZON_GRID_NUMBER][VERTICAL_GRID_NUMBER];
+        memset(vis, 0, sizeof(vis));
         std::vector<std::pair<Grid, Grid>> walls;
         vis[0][0] = 1;
         walls.emplace_back(Grid(0, 0), Grid(1, 0));
         while(!walls.empty())
         {
-            int n = util::getRandomNumber(0, walls.size() - 1);
+            int n = util::getRandomNumber(0, static_cast<int>(walls.size()) - 1);
             std::pair<Grid, Grid> wall = walls[n];
-            walls.erase(walls.begin() + n);
+            std::swap(walls[n], walls.back());
+            walls.pop_back();
             if(!vis[wall.second.x][wall.second.y])
             {
                 map[wall.first.id()][wall.second.id()] = map[wall.second.id()][wall.first.id()] = 1;

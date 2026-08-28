@@ -36,8 +36,8 @@ namespace TankTrouble
             KeyPoint start;
             KeyPoint end;
             util::Vec center;
-            double angle;
             double length;
+            double angle;
             double distanceToTarget;
             BallisticSegment(int id, int seq, KeyPoint s, KeyPoint e, double len, double a, double dis):
                     shellId(id), seq(seq), start(std::move(s)), end(std::move(e)),

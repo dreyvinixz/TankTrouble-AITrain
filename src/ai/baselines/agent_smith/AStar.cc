@@ -113,7 +113,9 @@ namespace TankTrouble
     int AStar::calcH(AStarNode* cur, int ex, int ey)
     {
         assert(cur != nullptr);
-        return static_cast<int>(sqrt(pow(ex - cur->x, 2) + pow(ey - cur->y, 2)));
+        int dx = ex - cur->x;
+        int dy = ey - cur->y;
+        return static_cast<int>(std::sqrt(dx * dx + dy * dy));
     }
 
     std::vector<AStar::AStarNode> AStar::getReachable(int x, int y)
@@ -136,11 +138,9 @@ namespace TankTrouble
 
     void AStar::addToOpenList(std::unique_ptr<AStarNode>&& node)
     {
-        assert(entryList.size() == openSet.size());
         entryList.push(std::make_pair(node->F, node->id));
         openSet.insert(node->id);
         nodes[node->id] = std::move(node);
-        assert(entryList.size() == openSet.size());
     }
 
     int AStar::getRoute(int sx, int sy, int ex, int ey)
@@ -148,17 +148,25 @@ namespace TankTrouble
         auto start = std::make_unique<AStarNode>(sx, sy);
         addToOpenList(std::move(start));
         int endId = getGridId(ex, ey);
-        while(!openSet.empty())
+        while(!entryList.empty())
         {
-            assert(nodes.size() == openSet.size() + closedSet.size());
             Entry smallestF = entryList.top();
-            AStarNode* cur = nodes[smallestF.second].get();
             entryList.pop();
+            int curId = smallestF.second;
+            if(closedSet.find(curId) != closedSet.end())
+                continue;
+            AStarNode* cur = nodes[curId].get();
+            if(smallestF.first > cur->F)
+                continue;
             openSet.erase(cur->id);
             closedSet.insert(cur->id);
+            if(cur->id == endId)
+                return endId;
             std::vector<AStarNode> reachable = getReachable(cur->x, cur->y);
             for(const AStarNode& n : reachable)
             {
+                if(closedSet.find(n.id) != closedSet.end())
+                    continue;
                 if(openSet.find(n.id) == openSet.end())
                 {
                     auto next = std::make_unique<AStarNode>(n.x, n.y);
@@ -174,26 +182,12 @@ namespace TankTrouble
                     int testG = calcG(cur, next);
                     if(testG < next->G)
                     {
-                        Entry old(next->F, next->id);
                         next->G = testG;
                         next->F = next->G + next->H;
                         next->parentId = cur->id;
-                        Entry _new(next->F, next->id);
-                        EntryList tmp;
-                        while(!entryList.empty())
-                        {
-                            Entry entry = entryList.top();
-                            entryList.pop();
-                            if(entry == old)
-                                continue;
-                            tmp.push(entry);
-                        }
-                        entryList.swap(tmp);
-                        entryList.push(_new);
+                        entryList.push(std::make_pair(next->F, next->id));
                     }
                 }
-                if(openSet.find(endId) != openSet.end())
-                    return endId;
             }
         }
         return -1;

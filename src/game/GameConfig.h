@@ -5,6 +5,7 @@
 #ifndef TANK_TROUBLE_AI_TRAIN_GAME_CONFIG_H
 #define TANK_TROUBLE_AI_TRAIN_GAME_CONFIG_H
 #include <vector>
+#include <array>
 
 #define HORIZON_GRID_NUMBER             11
 #define VERTICAL_GRID_NUMBER            7
@@ -31,8 +32,8 @@
 #define WINDOW_WIDTH                    GAME_VIEW_WIDTH + 100
 #define WINDOW_HEIGHT                   GAME_VIEW_HEIGHT
 
-typedef std::vector<double>             Color;
-#define BLACK                           {0, 0, 0}
+typedef std::array<double, 3>           Color;
+#define BLACK                           {0.0, 0.0, 0.0}
 #define RED                             {1.0, 0.3, 0.3}
 #define BLUE                            {0.3, 0.3, 1.0}
 #define GREEN                           {0.3, 1.0, 0.3}

@@ -19,7 +19,7 @@ namespace TankTrouble::util
 
     Vec Vec::operator/(double d) const {return Vec(_x / d, _y / d);}
 
-    double Vec::norm() const {return sqrt(pow(_x, 2) + pow(_y, 2));}
+    double Vec::norm() const {return std::sqrt(_x * _x + _y * _y);}
 
     double Vec::cross(const Vec &v) const {return _x * v.y() - v.x() * _y;}
 

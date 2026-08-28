@@ -77,7 +77,25 @@ Planned project-owned work:
 - Trainable reinforcement-learning agents and reproducible experiments.
 - Evaluation against Agent Smith and other baselines.
 
-See the complete [public roadmap](docs/roadmap.md), [architecture guide](docs/architecture.md), and [reproducibility guide](docs/reproducibility.md).
+See the complete [roadmap](ROADMAP.md), [architecture guide](docs/architecture.md), and [reproducibility guide](docs/reproducibility.md).
+
+## CUDA PPO quick start
+
+The first learning baseline is a CUDA-only PyTorch PPO policy trained against
+the headless Agent Smith opponent. The simulator is deterministic C++ on CPU
+in v1; model inference and all PPO learning calculations require CUDA.
+
+On a Linux-native WSL2 checkout:
+
+```bash
+bash scripts/training/bootstrap_wsl.sh
+source scripts/wsl_cuda_env.sh
+bash scripts/training/verify_cuda.sh
+bash scripts/training/smoke_ppo.sh
+```
+
+Read [CUDA Training on WSL2](docs/cuda-wsl.md) before a full run. The current
+defaults target a 4 GB GPU and intentionally refuse CPU fallback.
 
 ## Contributing
 

@@ -5,6 +5,7 @@
 #ifndef TANK_TROUBLE_DATA_H
 #define TANK_TROUBLE_DATA_H
 #include <string>
+#include <cstdint>
 
 namespace TankTrouble
 {
@@ -37,7 +38,7 @@ namespace TankTrouble
         Color color_;
 
         explicit PlayerInfo(const std::string& nickname, Color color):
-            nickname_(nickname), color_(std::move(color)), score_(0) {}
+            nickname_(nickname), score_(0), color_(color) {}
         PlayerInfo() = default;
     };
 }

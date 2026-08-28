@@ -18,14 +18,22 @@ New training features must not depend on GTKmm. The intended project-owned struc
 
 ```text
 src/training/
-  environment/  # Reset, step, observations, rewards, and terminal states
-  agents/       # Trainable policies and baseline adapters
-  evaluation/   # Metrics, match runners, and reproducible benchmarks
-  config/       # Versioned experiment templates
-tests/          # Deterministic environment and regression tests
+  environment/  # C++ deterministic reset/step arena
+  bindings/     # pybind11 vector-environment module
+python/tanktrain/
+  model.py      # CUDA actor-critic network
+  ppo.py        # CUDA rollout buffer and PPO update
+  train.py      # Reproducible experiment entry point
+config/training/ # Versioned environment, PPO, and evaluation templates
+tests/training/  # Deterministic C++ regression tests
 ```
 
-The environment layer will call game-domain logic directly. GTKmm will remain an optional visualizer and human-control frontend. This separation permits headless simulation, parallel episodes, and repeatable experiments.
+`TankArena` exposes `reset(seed)` and `step(TankAction)`. Each step accepts
+`MultiDiscrete(3, 3, 2)` controls, advances a fixed number of simulation
+ticks, and returns a fixed privileged observation vector, reward, terminal
+state, and truncation state. GTKmm remains an optional visualizer and
+human-control frontend. This separation permits headless simulation, parallel
+episodes, and repeatable experiments.
 
 ## Design constraints
 
@@ -33,3 +41,5 @@ The environment layer will call game-domain logic directly. GTKmm will remain an
 - Keep seeds, environment configuration, and agent hyperparameters serializable.
 - Keep online networking separate from offline training.
 - Treat Agent Smith as a baseline opponent, not as a training dependency.
+- Keep PyTorch policy, rollout, GAE, loss, and optimizer tensors on CUDA; do
+  not silently fall back to CPU.

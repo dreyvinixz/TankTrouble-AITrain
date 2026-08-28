@@ -6,9 +6,9 @@
 namespace TankTrouble
 {
     Controller::Controller():
+        snapshot(new ObjectList),
         started(false),
-        controlLoop(nullptr),
-        snapshot(new ObjectList) {}
+        controlLoop(nullptr) {}
 
     Controller::ObjectListPtr Controller::getObjects()
     {
@@ -30,7 +30,7 @@ namespace TankTrouble
         std::lock_guard<std::mutex> lg(playersInfoMu);
         for(const auto& entry: playersInfo)
             info.push_back(entry.second);
-        return std::move(info);
+        return info;
     }
 
     Controller::~Controller()

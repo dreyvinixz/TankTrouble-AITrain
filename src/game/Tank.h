@@ -6,6 +6,7 @@
 #define TANK_TROUBLE_TANK_H
 #include "core/Vec.h"
 #include "Object.h"
+#include <memory>
 
 namespace TankTrouble
 {
@@ -30,7 +31,7 @@ namespace TankTrouble
         bool isRotatingCCW();
         ObjType type() override;
         [[nodiscard]] int remainShells() const;
-        [[nodiscard]] Shell* makeShell();
+        [[nodiscard]] std::unique_ptr<Shell> makeShell();
         void getRemainShell();
         ~Tank() override = default;
 
