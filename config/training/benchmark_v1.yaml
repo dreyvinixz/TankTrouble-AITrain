@@ -1,0 +1,4 @@
+training_config: config/training/ppo_benchmark_v1.yaml
+evaluation_config: config/training/evaluation_v1.yaml
+training_seeds: [17, 29, 43, 59, 73]
+random_policy_seed: 991

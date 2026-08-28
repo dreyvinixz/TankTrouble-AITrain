@@ -18,8 +18,14 @@ from .runtime import git_revision, load_yaml, repository_root, require_cuda, see
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/training/ppo_v1.yaml")
+    parser.add_argument("--seed", type=int, help="Override the YAML seed for benchmark runs.")
+    parser.add_argument("--run-name", help="Override the YAML run name for benchmark runs.")
     args = parser.parse_args()
     config = load_yaml(args.config)
+    if args.seed is not None:
+        config["seed"] = args.seed
+    if args.run_name is not None:
+        config["run_name"] = args.run_name
     if config.get("device") != "cuda":
         raise RuntimeError("The training configuration must explicitly request device: cuda.")
     device = require_cuda()
@@ -95,6 +101,8 @@ def main() -> None:
                     run_directory / f"policy_{update:05d}.pt",
                 )
             print(json.dumps(metrics, sort_keys=True))
+
+    print(f"Run saved to {run_directory}")
 
 
 if __name__ == "__main__":
