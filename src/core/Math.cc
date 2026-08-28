@@ -30,7 +30,7 @@ namespace TankTrouble::util
     std::array<Vec, 4> getCornerVec(const Vec& pos, double angle, int w, int h)
     {
         Vec tl, tr, bl, br;
-        static double diagM2 = std::sqrt(static_cast<double>(w * w + h * h)) / 2.0;
+        double diagM2 = std::sqrt(static_cast<double>(w * w + h * h)) / 2.0;
         double a = rad2Deg(atan2((double) w, (double) h));
         double a1 = a + angle;
         double a2 = angle - a;
@@ -164,7 +164,7 @@ namespace TankTrouble::util
 
     static std::mt19937& getRngEngine()
     {
-        static std::mt19937 gen(std::random_device{}());
+        static thread_local std::mt19937 gen(std::random_device{}());
         return gen;
     }
 

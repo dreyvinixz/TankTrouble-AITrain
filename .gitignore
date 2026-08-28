@@ -43,6 +43,7 @@
 /.vscode/
 /.venv-wsl/
 /python/.pytest_cache/
+/python/*.egg-info/
 **/__pycache__/
 *.py[cod]
 
