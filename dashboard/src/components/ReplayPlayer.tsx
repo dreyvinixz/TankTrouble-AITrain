@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LiveFrame, ReplayData, ReplayMeta, WallSegment } from '../types/replay';
-import { Play, Pause, RotateCcw, Film, Trophy, ChevronLeft, ChevronRight, Radio, Tv, Zap, Shield, Crosshair } from 'lucide-react';
+import { Play, Pause, RotateCcw, Film, Trophy, ChevronLeft, ChevronRight, Radio, Tv, Zap, Shield, Crosshair, Sparkles } from 'lucide-react';
 
 interface ReplayPlayerProps {
   replays: ReplayMeta[];
@@ -24,160 +24,170 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLooping, setIsLooping] = useState(true);
 
-  // Auto-switch to live when training begins if requested
+  // High precision fractional playback frame for 60fps LERP
+  const animStateRef = useRef<{
+    fractionalFrame: number;
+    lastTimestamp: number;
+  }>({
+    fractionalFrame: 0,
+    lastTimestamp: 0,
+  });
+
+  // Reset playback position on replay selection
   useEffect(() => {
-    if (runStatus === 'training' && liveFrame) {
-      // User can stay in live or switch to replay
-    }
-  }, [runStatus, liveFrame]);
-
-  // Playback timer for Replay mode
-  useEffect(() => {
-    if (viewMode !== 'replay' || !isPlaying || !selectedReplay || selectedReplay.frames.length === 0) return;
-
-    const intervalMs = Math.max(16, Math.floor(50 / playbackSpeed));
-    const timer = setInterval(() => {
-      setCurrentFrameIdx((prev) => {
-        if (prev >= selectedReplay.frames.length - 1) {
-          if (isLooping) return 0;
-          setIsPlaying(false);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [viewMode, isPlaying, playbackSpeed, isLooping, selectedReplay]);
-
-  // Reset frame index on replay change
-  useEffect(() => {
+    animStateRef.current.fractionalFrame = 0;
+    animStateRef.current.lastTimestamp = 0;
     setCurrentFrameIdx(0);
     setIsPlaying(true);
   }, [selectedReplay?.seed, selectedReplay?.total_frames]);
 
-  // Canvas 2D Render Loop
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Handle manual timeline seek
+  const handleSeek = (newFrame: number) => {
+    animStateRef.current.fractionalFrame = newFrame;
+    animStateRef.current.lastTimestamp = 0;
+    setCurrentFrameIdx(newFrame);
+  };
 
-    const isLive = viewMode === 'live' && liveFrame !== null;
-    const currentFrame = isLive
-      ? liveFrame
-      : selectedReplay?.frames[currentFrameIdx] || selectedReplay?.frames[0];
-
-    if (!currentFrame && !selectedReplay && !liveFrame) return;
-
-    const width = (isLive ? liveFrame?.dimensions?.width : selectedReplay?.dimensions?.width) || 660;
-    const height = (isLive ? liveFrame?.dimensions?.height : selectedReplay?.dimensions?.height) || 420;
-    canvas.width = width;
-    canvas.height = height;
-
-    // 1. Clear background with deep tactical aesthetic
-    ctx.fillStyle = '#060a14';
-    ctx.fillRect(0, 0, width, height);
-
-    // Subtle grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= width; x += 60) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= height; y += 60) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-
-    // 2. Draw Maze Walls with crisp neon outline
-    const walls: WallSegment[] = (isLive ? liveFrame?.walls : selectedReplay?.walls) || [];
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(51, 65, 85, 0.5)';
-    ctx.shadowBlur = 4;
-
-    for (const wall of walls) {
-      ctx.beginPath();
-      ctx.moveTo(wall.x1, wall.y1);
-      ctx.lineTo(wall.x2, wall.y2);
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-
-    if (!currentFrame) return;
-
-    // Helper: Draw Tank (Clean Sprite with no obstructive text labels)
-    const drawTank = (
-      pose: { x: number; y: number; angle: number; ammo: number; alive?: boolean },
-      color: string,
-      glowColor: string
+  // Helper: Draw single scene on Canvas 2D
+  const drawScene = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      frameA: any,
+      frameB: any,
+      alpha: number,
+      walls: WallSegment[],
+      dimensions?: { width: number; height: number }
     ) => {
-      const isAlive = pose.alive !== false;
-      ctx.save();
-      ctx.translate(pose.x, pose.y);
-      ctx.rotate((-pose.angle * Math.PI) / 180);
+      const width = dimensions?.width || 660;
+      const height = dimensions?.height || 420;
 
-      // Tank Body (28 x 20) with smooth rounded corners
-      ctx.fillStyle = isAlive ? color : '#475569';
-      ctx.shadowColor = isAlive ? glowColor : 'transparent';
-      ctx.shadowBlur = isAlive ? 10 : 0;
-      ctx.beginPath();
-      ctx.roundRect(-14, -10, 28, 20, 4);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      // 1. Clear background
+      ctx.fillStyle = '#060a14';
+      ctx.fillRect(0, 0, width, height);
 
-      // Tank Tracks (Tactical Dark Gray)
-      ctx.fillStyle = '#090d16';
-      ctx.fillRect(-14, -13, 28, 4);
-      ctx.fillRect(-14, 9, 28, 4);
-
-      // Turret Base (Center Core)
-      ctx.fillStyle = '#020617';
-      ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Inner Turret Accent
-      ctx.fillStyle = isAlive ? glowColor : '#64748b';
-      ctx.beginPath();
-      ctx.arc(0, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Cannon Barrel (Oriented forward in heading direction)
-      ctx.fillStyle = isAlive ? color : '#64748b';
-      ctx.fillRect(0, -2.5, 17, 5);
-
-      // Barrel tip highlight
-      if (isAlive) {
-        ctx.fillStyle = glowColor;
-        ctx.fillRect(15, -2, 2, 4);
+      // Subtle tactical grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= width; x += 60) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= height; y += 60) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
       }
 
-      ctx.restore();
-    };
+      // 2. Draw Maze Walls
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(51, 65, 85, 0.5)';
+      ctx.shadowBlur = 4;
 
-    // 3. Draw Tanks
-    if (currentFrame.player) {
-      drawTank(currentFrame.player, '#059669', '#34d399');
-    }
-    if (currentFrame.opponent) {
-      drawTank(currentFrame.opponent, '#e11d48', '#fb7185');
-    }
+      for (const wall of walls) {
+        ctx.beginPath();
+        ctx.moveTo(wall.x1, wall.y1);
+        ctx.lineTo(wall.x2, wall.y2);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
 
-    // 4. Draw Shells (Projectiles with glowing particle core)
-    if (currentFrame.shells) {
-      for (const shell of currentFrame.shells) {
+      if (!frameA) return;
+
+      // Helper: Draw Tank (Interpolated)
+      const drawTank = (
+        pA?: { x: number; y: number; angle: number; ammo: number; alive?: boolean },
+        pB?: { x: number; y: number; angle: number; ammo: number; alive?: boolean },
+        color: string = '#059669',
+        glowColor: string = '#34d399'
+      ) => {
+        if (!pA && !pB) return;
+        const src = pA || pB!;
+        const dst = pB || pA!;
+
+        // Linear interpolation for position
+        const posX = src.x + (dst.x - src.x) * alpha;
+        const posY = src.y + (dst.y - src.y) * alpha;
+
+        // Shortest angular path interpolation
+        let deltaAngle = dst.angle - src.angle;
+        while (deltaAngle > 180) deltaAngle -= 360;
+        while (deltaAngle < -180) deltaAngle += 360;
+        const angle = src.angle + deltaAngle * alpha;
+
+        const isAlive = dst.alive !== false;
+
         ctx.save();
-        ctx.translate(shell.x, shell.y);
+        ctx.translate(posX, posY);
+        ctx.rotate((-angle * Math.PI) / 180);
 
-        const shellGlow = shell.owner === 0 ? '#34d399' : '#fb7185';
+        // Tank Body (28 x 20) with smooth rounded corners
+        ctx.fillStyle = isAlive ? color : '#475569';
+        ctx.shadowColor = isAlive ? glowColor : 'transparent';
+        ctx.shadowBlur = isAlive ? 10 : 0;
+        ctx.beginPath();
+        ctx.roundRect(-14, -10, 28, 20, 4);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Tank Tracks (Tactical Dark Gray)
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(-14, -13, 28, 4);
+        ctx.fillRect(-14, 9, 28, 4);
+
+        // Turret Base (Center Core)
+        ctx.fillStyle = '#020617';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner Turret Accent
+        ctx.fillStyle = isAlive ? glowColor : '#64748b';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cannon Barrel
+        ctx.fillStyle = isAlive ? color : '#64748b';
+        ctx.fillRect(0, -2.5, 17, 5);
+
+        // Barrel tip highlight
+        if (isAlive) {
+          ctx.fillStyle = glowColor;
+          ctx.fillRect(15, -2, 2, 4);
+        }
+
+        ctx.restore();
+      };
+
+      // Draw PPO (Green) and Smith (Red)
+      drawTank(frameA.player, frameB?.player, '#059669', '#34d399');
+      drawTank(frameA.opponent, frameB?.opponent, '#e11d48', '#fb7185');
+
+      // 4. Draw Shells (Interpolated trajectory)
+      const shellsA: any[] = frameA.shells || [];
+      const shellsB: any[] = frameB?.shells || [];
+
+      for (let sIdx = 0; sIdx < shellsA.length; sIdx++) {
+        const sA = shellsA[sIdx];
+        const sB = shellsB[sIdx];
+
+        let posX = sA.x;
+        let posY = sA.y;
+
+        if (sB && Math.hypot(sB.x - sA.x, sB.y - sA.y) < 35) {
+          posX = sA.x + (sB.x - sA.x) * alpha;
+          posY = sA.y + (sB.y - sA.y) * alpha;
+        }
+
+        const shellGlow = sA.owner === 0 ? '#34d399' : '#fb7185';
+
+        ctx.save();
+        ctx.translate(posX, posY);
 
         // Outer glow
         ctx.fillStyle = shellGlow;
@@ -195,8 +205,71 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
 
         ctx.restore();
       }
-    }
-  }, [viewMode, liveFrame, currentFrameIdx, selectedReplay]);
+    },
+    []
+  );
+
+  // 60 FPS RequestAnimationFrame Loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animId: number;
+
+    const renderLoop = (timestamp: number) => {
+      if (viewMode === 'live' && liveFrame) {
+        // Direct live frame rendering
+        canvas.width = liveFrame.dimensions?.width || 660;
+        canvas.height = liveFrame.dimensions?.height || 420;
+        drawScene(ctx, liveFrame, null, 0, liveFrame.walls || [], liveFrame.dimensions);
+      } else if (viewMode === 'replay' && selectedReplay && selectedReplay.frames.length > 0) {
+        canvas.width = selectedReplay.dimensions?.width || 660;
+        canvas.height = selectedReplay.dimensions?.height || 420;
+
+        if (!animStateRef.current.lastTimestamp) {
+          animStateRef.current.lastTimestamp = timestamp;
+        }
+
+        const deltaMs = Math.min(100, timestamp - animStateRef.current.lastTimestamp);
+        animStateRef.current.lastTimestamp = timestamp;
+
+        if (isPlaying) {
+          // 50ms per decision frame at 1x speed (20 decisions/s -> silky smooth 60fps interpolation)
+          const frameDurationMs = 50 / playbackSpeed;
+          animStateRef.current.fractionalFrame += deltaMs / frameDurationMs;
+
+          const maxFrame = selectedReplay.frames.length - 1;
+          if (animStateRef.current.fractionalFrame >= maxFrame) {
+            if (isLooping) {
+              animStateRef.current.fractionalFrame = 0;
+            } else {
+              animStateRef.current.fractionalFrame = maxFrame;
+              setIsPlaying(false);
+            }
+          }
+        }
+
+        const totalFrames = selectedReplay.frames.length;
+        const floatIdx = Math.max(0, Math.min(animStateRef.current.fractionalFrame, totalFrames - 1));
+        const idxA = Math.floor(floatIdx);
+        const idxB = Math.min(idxA + 1, totalFrames - 1);
+        const alpha = floatIdx - idxA;
+
+        setCurrentFrameIdx(idxA);
+
+        const frameA = selectedReplay.frames[idxA];
+        const frameB = selectedReplay.frames[idxB];
+        drawScene(ctx, frameA, frameB, alpha, selectedReplay.walls, selectedReplay.dimensions);
+      }
+
+      animId = requestAnimationFrame(renderLoop);
+    };
+
+    animId = requestAnimationFrame(renderLoop);
+    return () => cancelAnimationFrame(animId);
+  }, [viewMode, liveFrame, selectedReplay, isPlaying, playbackSpeed, isLooping, drawScene]);
 
   const hasReplay = selectedReplay && selectedReplay.frames && selectedReplay.frames.length > 0;
   const isLiveActive = viewMode === 'live' && liveFrame !== null;
@@ -278,6 +351,25 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
 
         {/* Legend / Status Badges */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* 60 FPS LERP Badge */}
+          {viewMode === 'replay' && (
+            <span style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.3)'
+            }}>
+              <Sparkles size={11} />
+              60 FPS LERP
+            </span>
+          )}
+
           {/* Legend Tanks */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#34d399', fontWeight: 600 }}>
@@ -468,7 +560,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
             min={0}
             max={Math.max(0, selectedReplay.total_frames - 1)}
             value={currentFrameIdx}
-            onChange={(e) => setCurrentFrameIdx(Number(e.target.value))}
+            onChange={(e) => handleSeek(Number(e.target.value))}
             style={{ width: '100%', cursor: 'pointer' }}
           />
 
@@ -477,7 +569,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* Step Back */}
               <button
-                onClick={() => setCurrentFrameIdx((prev) => Math.max(0, prev - 1))}
+                onClick={() => handleSeek(Math.max(0, currentFrameIdx - 1))}
                 style={{ background: 'rgba(255, 255, 255, 0.05)', border: 'none', borderRadius: '6px', padding: '6px 10px', color: '#94a3b8', cursor: 'pointer' }}
                 title="Voltar 1 frame"
               >
@@ -506,7 +598,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
 
               {/* Step Forward */}
               <button
-                onClick={() => setCurrentFrameIdx((prev) => Math.min(selectedReplay.total_frames - 1, prev + 1))}
+                onClick={() => handleSeek(Math.min(selectedReplay.total_frames - 1, currentFrameIdx + 1))}
                 style={{ background: 'rgba(255, 255, 255, 0.05)', border: 'none', borderRadius: '6px', padding: '6px 10px', color: '#94a3b8', cursor: 'pointer' }}
                 title="Avançar 1 frame"
               >
@@ -515,7 +607,7 @@ export const ReplayPlayer: React.FC<ReplayPlayerProps> = ({
 
               {/* Reset / Restart */}
               <button
-                onClick={() => setCurrentFrameIdx(0)}
+                onClick={() => handleSeek(0)}
                 style={{ background: 'rgba(255, 255, 255, 0.05)', border: 'none', borderRadius: '6px', padding: '6px 10px', color: '#94a3b8', cursor: 'pointer' }}
                 title="Reiniciar partida"
               >
