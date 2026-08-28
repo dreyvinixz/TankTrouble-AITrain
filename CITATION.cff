@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use TankTrouble AI Train, please cite this project and the original TankTrouble repository."
+title: "TankTrouble AI Train"
+type: software
+authors:
+  - name: "dreyvinixz"
+version: 0.1.0
+date-released: 2026-08-28
+license: MIT
+repository-code: "https://github.com/dreyvinixz/TankTrouble-AITrain"
+references:
+  - type: software
+    title: "TankTrouble"
+    authors:
+      - name: "Zhao Rui"
+    repository-code: "https://github.com/JustDoIt0910/TankTrouble"
+    license: MIT

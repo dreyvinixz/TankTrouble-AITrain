@@ -20,7 +20,7 @@ namespace TankTrouble
         KeyLeftPressed(false), KeyRightPressed(false),
         spacePressed(false)
     {
-        set_title("TankTrouble");
+        set_title("TankTrouble AI Train");
         set_default_size(WINDOW_WIDTH, WINDOW_HEIGHT);
         set_resizable(false);
         add_events(Gdk::KEY_PRESS_MASK | Gdk::KEY_RELEASE_MASK);

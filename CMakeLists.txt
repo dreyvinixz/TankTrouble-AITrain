@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(TankTrouble)
+project(TankTroubleAITrain VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Debug)
@@ -43,4 +43,4 @@ link_directories(${GTKMM_LIBRARY_DIRS} ${EV_LIBRARY_DIRS})
 link_libraries(${GTKMM_LIBRARIES} reactor net pthread)
 
 file(COPY ${CMAKE_SOURCE_DIR}/res/entry.jpg DESTINATION ${CMAKE_BINARY_DIR})
-add_executable(TankTrouble ${TANK_TROUBLE_SRC})
+add_executable(TankTroubleAITrain ${TANK_TROUBLE_SRC})
