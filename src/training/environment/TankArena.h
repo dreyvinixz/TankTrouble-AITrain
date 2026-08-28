@@ -94,7 +94,14 @@ namespace TankTrouble::training
         void spawnTanks();
         void advanceTank(TankState& tank, const TankAction& action, bool permitFire, int owner);
         void advanceShells(StepResult& result);
-        TankAction agentSmithAction() const;
+        // Headless port of the legacy Agent Smith decision priorities: evade
+        // predicted incoming shells, contact through the maze, then attack.
+        TankAction agentSmithAction();
+        TankAction dodgeAction() const;
+        TankAction contactAction() const;
+        bool shellThreatensOpponent(const ShellState& shell) const;
+        bool hasDirectShot() const;
+        int nextRouteCell() const;
         bool isTankPositionValid(float x, float y) const;
         const Wall* collidingWall(float x, float y, float radius) const;
         bool tankHit(const ShellState& shell, const TankState& tank) const;
@@ -113,6 +120,8 @@ namespace TankTrouble::training
         TankState player_;
         TankState opponent_;
         int decision_ = 0;
+        int globalTick_ = 0;
+        int opponentNextFireTick_ = 0;
         bool terminated_ = false;
         bool truncated_ = false;
     };

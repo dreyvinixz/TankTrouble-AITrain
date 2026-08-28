@@ -29,6 +29,8 @@ namespace TankTrouble::training
     {
         rng_.seed(seed);
         decision_ = 0;
+        globalTick_ = 0;
+        opponentNextFireTick_ = 0;
         terminated_ = false;
         truncated_ = false;
         shells_.clear();
@@ -59,9 +61,12 @@ namespace TankTrouble::training
         {
             advanceTank(player_, action, tick == 0, 0);
             const TankAction opponentAction = agentSmithAction();
-            advanceTank(opponent_, opponentAction, tick == 0, 1);
+            // The baseline has its own tick scheduler and fire cooldown, so it
+            // may legitimately fire on any simulation tick.
+            advanceTank(opponent_, opponentAction, true, 1);
             result.reward += config_.survivalRewardPerTick;
             advanceShells(result);
+            ++globalTick_;
         }
 
         ++decision_;
@@ -236,23 +241,167 @@ namespace TankTrouble::training
         shells_ = std::move(active);
     }
 
-    TankAction TankArena::agentSmithAction() const
+    TankAction TankArena::agentSmithAction()
     {
-        TankAction action;
-        const float desired = angleTo(opponent_.x, opponent_.y, player_.x, player_.y);
-        float delta = desired - opponent_.angle;
-        if(delta > 180.0F) delta -= 360.0F;
-        if(delta < -180.0F) delta += 360.0F;
-        if(std::abs(delta) > 6.0F)
-            action.rotation = delta > 0.0F ? 2 : 1;
+        // The legacy controller gives dodge strategies priority over attack
+        // and contact strategies. Keep the same ordering in the deterministic
+        // headless arena while using its compact state representation.
+        for(const ShellState& shell: shells_)
+            if(shell.owner == 0 && shellThreatensOpponent(shell))
+                return dodgeAction();
+
+        TankAction action = contactAction();
         const float dx = player_.x - opponent_.x;
         const float dy = player_.y - opponent_.y;
         const float distance = std::sqrt(dx * dx + dy * dy);
-        if(distance > 90.0F)
-            action.movement = 1;
-        if(std::abs(delta) < 9.0F && distance < 320.0F && opponent_.ammo > 0)
-            action.fire = 1;
+
+        // Agent Smith attacks on a slower scheduler and will not request a
+        // second shot until the previous shell has had time to clear the tank.
+        // 80/60 ticks are the legacy attack period/fire cooldown respectively.
+        if(globalTick_ % 80 == 0 && globalTick_ >= opponentNextFireTick_
+            && opponent_.ammo > 0 && distance <= 120.0F && hasDirectShot())
+        {
+            const float desired = angleTo(opponent_.x, opponent_.y, player_.x, player_.y);
+            float delta = desired - opponent_.angle;
+            if(delta > 180.0F) delta -= 360.0F;
+            if(delta < -180.0F) delta += 360.0F;
+            if(std::abs(delta) < 4.0F)
+            {
+                action.fire = 1;
+                opponentNextFireTick_ = globalTick_ + 60;
+            }
+        }
         return action;
+    }
+
+    TankAction TankArena::dodgeAction() const
+    {
+        TankAction action;
+        const ShellState* threat = nullptr;
+        for(const ShellState& shell: shells_)
+            if(shell.owner == 0 && shellThreatensOpponent(shell))
+            {
+                threat = &shell;
+                break;
+            }
+        if(threat == nullptr)
+            return action;
+
+        const float radians = threat->angle * kPi / 180.0F;
+        const float directionX = std::cos(radians);
+        const float directionY = -std::sin(radians);
+        const float relativeX = opponent_.x - threat->x;
+        const float relativeY = opponent_.y - threat->y;
+        const float cross = directionX * relativeY - directionY * relativeX;
+        // Turn away from the trajectory and move simultaneously, matching the
+        // combined rotation/movement dodge commands in DodgeStrategy.
+        action.rotation = cross >= 0.0F ? 1 : 2;
+        action.movement = 1;
+        return action;
+    }
+
+    TankAction TankArena::contactAction() const
+    {
+        TankAction action;
+        float targetX = player_.x;
+        float targetY = player_.y;
+        if(!hasDirectShot())
+        {
+            const int nextCell = nextRouteCell();
+            if(nextCell >= 0)
+            {
+                targetX = (nextCell % HORIZONTAL_CELLS + 0.5F) * kCellSize;
+                targetY = (nextCell / HORIZONTAL_CELLS + 0.5F) * kCellSize;
+            }
+        }
+        const float desired = angleTo(opponent_.x, opponent_.y, targetX, targetY);
+        float delta = desired - opponent_.angle;
+        if(delta > 180.0F) delta -= 360.0F;
+        if(delta < -180.0F) delta += 360.0F;
+        if(std::abs(delta) >= 12.0F)
+            action.rotation = delta > 0.0F ? 2 : 1;
+        if(std::abs(delta) < 45.0F)
+            action.movement = 1;
+        return action;
+    }
+
+    bool TankArena::shellThreatensOpponent(const ShellState& shell) const
+    {
+        constexpr float threatenedRange = 150.0F;
+        const float dx = opponent_.x - shell.x;
+        const float dy = opponent_.y - shell.y;
+        if(dx * dx + dy * dy > threatenedRange * threatenedRange)
+            return false;
+        const float radians = shell.angle * kPi / 180.0F;
+        const float directionX = std::cos(radians);
+        const float directionY = -std::sin(radians);
+        const float along = directionX * dx + directionY * dy;
+        if(along < 0.0F || along > 75.0F)
+            return false;
+        const float lateral = std::abs(directionX * dy - directionY * dx);
+        return lateral <= kTankRadius + kShellRadius + 3.0F;
+    }
+
+    bool TankArena::hasDirectShot() const
+    {
+        const float dx = player_.x - opponent_.x;
+        const float dy = player_.y - opponent_.y;
+        const auto crossesWall = [this, dx, dy](const Wall& wall)
+        {
+            if(wall.horizontal)
+            {
+                if(std::abs(dy) < std::numeric_limits<float>::epsilon())
+                    return false;
+                const float t = (wall.y1 - opponent_.y) / dy;
+                if(t <= 0.0F || t >= 1.0F)
+                    return false;
+                const float x = opponent_.x + t * dx;
+                return x > std::min(wall.x1, wall.x2) && x < std::max(wall.x1, wall.x2);
+            }
+            if(std::abs(dx) < std::numeric_limits<float>::epsilon())
+                return false;
+            const float t = (wall.x1 - opponent_.x) / dx;
+            if(t <= 0.0F || t >= 1.0F)
+                return false;
+            const float y = opponent_.y + t * dy;
+            return y > std::min(wall.y1, wall.y2) && y < std::max(wall.y1, wall.y2);
+        };
+        return std::none_of(walls_.begin(), walls_.end(), crossesWall);
+    }
+
+    int TankArena::nextRouteCell() const
+    {
+        const auto tankCell = [](const TankState& tank)
+        {
+            const int x = std::clamp(static_cast<int>(tank.x / kCellSize), 0, HORIZONTAL_CELLS - 1);
+            const int y = std::clamp(static_cast<int>(tank.y / kCellSize), 0, VERTICAL_CELLS - 1);
+            return cellId(x, y);
+        };
+        const int start = tankCell(opponent_);
+        const int target = tankCell(player_);
+        if(start == target)
+            return -1;
+
+        std::array<int, CELL_COUNT> previous{};
+        previous.fill(-1);
+        std::vector<int> queue = {start};
+        previous[start] = start;
+        for(size_t index = 0; index < queue.size() && previous[target] == -1; ++index)
+        {
+            const int current = queue[index];
+            for(int next = 0; next < CELL_COUNT; ++next)
+                if(connections_[current][next] && previous[next] == -1)
+                {
+                    previous[next] = current;
+                    queue.push_back(next);
+                }
+        }
+        if(previous[target] == -1)
+            return -1;
+        int next = target;
+        while(previous[next] != start)
+            next = previous[next];
+        return next;
     }
 
     bool TankArena::isTankPositionValid(float x, float y) const

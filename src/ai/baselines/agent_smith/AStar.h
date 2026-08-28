@@ -11,6 +11,7 @@
 #include <queue>
 #include <vector>
 #include <memory>
+#include <cstddef>
 #define MAX_A_STAR_NODE_ID  (VERTICAL_A_STAR_GRID_NUMBER * HORIZON_A_STAR_GRID_NUMBER)
 #define REACHABLE           0
 #define UNREACHABLE         1
@@ -29,6 +30,7 @@ namespace TankTrouble
         AStar() = default;
         void init(BlockList* blocks);
         AStarResult findRoute(int sx, int sy, int ex, int ey);
+        [[nodiscard]] size_t staleEntriesDiscarded() const;
 
     private:
         struct AStarNode
@@ -56,6 +58,7 @@ namespace TankTrouble
         std::unordered_set<int> openSet;
         std::unordered_set<int> closedSet;
         std::unordered_map<int, std::unique_ptr<AStarNode>> nodes;
+        size_t staleEntriesDiscarded_ = 0;
     };
 }
 

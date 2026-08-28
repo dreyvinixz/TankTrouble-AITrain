@@ -87,6 +87,7 @@ namespace TankTrouble
 
     AStar::AStarResult AStar::findRoute(int sx, int sy, int ex, int ey)
     {
+        staleEntriesDiscarded_ = 0;
         AStarResult res;
         int id = getRoute(sx, sy, ex, ey);
         while(id != -1)
@@ -100,6 +101,8 @@ namespace TankTrouble
         nodes.clear();
         return res;
     }
+
+    size_t AStar::staleEntriesDiscarded() const {return staleEntriesDiscarded_;}
 
     int AStar::getGridId(int x, int y) {return y * static_cast<int>(HORIZON_A_STAR_GRID_NUMBER) + x;}
 
@@ -154,10 +157,16 @@ namespace TankTrouble
             entryList.pop();
             int curId = smallestF.second;
             if(closedSet.find(curId) != closedSet.end())
+            {
+                ++staleEntriesDiscarded_;
                 continue;
+            }
             AStarNode* cur = nodes[curId].get();
             if(smallestF.first > cur->F)
+            {
+                ++staleEntriesDiscarded_;
                 continue;
+            }
             openSet.erase(cur->id);
             closedSet.insert(cur->id);
             if(cur->id == endId)
