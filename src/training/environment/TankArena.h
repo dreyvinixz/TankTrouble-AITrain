@@ -50,13 +50,17 @@ namespace TankTrouble::training
         static constexpr int VERTICAL_CELLS = 7;
         static constexpr int CELL_COUNT = HORIZONTAL_CELLS * VERTICAL_CELLS;
         static constexpr int MAX_SHELL_FEATURES = 8;
-        static constexpr int OBSERVATION_SIZE = 12 + MAX_SHELL_FEATURES * 7 + CELL_COUNT * 4;
+        static constexpr int LIDAR_RAYS = 8;
+        static constexpr float LIDAR_MAX_DISTANCE = 180.0F;
+        static constexpr int OBSERVATION_SIZE = 12 + MAX_SHELL_FEATURES * 7 + CELL_COUNT * 4 + LIDAR_RAYS;
 
         explicit TankArena(ArenaConfig config = {});
 
         std::vector<float> reset(uint32_t seed);
         StepResult step(const TankAction& action);
         [[nodiscard]] std::vector<float> observation() const;
+        [[nodiscard]] std::array<float, LIDAR_RAYS> wallLidar(float x, float y, float angle) const;
+        [[nodiscard]] float raycastWall(float originX, float originY, float rayAngle, float maxDistance) const;
         [[nodiscard]] bool terminated() const;
         [[nodiscard]] bool truncated() const;
         [[nodiscard]] int decision() const;

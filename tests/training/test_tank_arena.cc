@@ -20,6 +20,7 @@ void testDeterminism()
     const auto secondReset = second.reset(77);
     assert(firstReset == secondReset);
     assert(static_cast<int>(firstReset.size()) == TankArena::OBSERVATION_SIZE);
+    assert(TankArena::OBSERVATION_SIZE == 384);
 
     const std::vector<TankAction> actions = {
         {1, 2, 1}, {1, 0, 0}, {0, 1, 0}, {2, 0, 0}, {1, 1, 0},
@@ -77,6 +78,7 @@ void testObservationContract()
     TankArena arena(config);
     const auto obs = arena.reset(42);
     assert(static_cast<int>(obs.size()) == TankArena::OBSERVATION_SIZE);
+    assert(static_cast<int>(obs.size()) == 384);
     for(float val: obs)
     {
         assert(std::isfinite(val));
@@ -122,6 +124,29 @@ void testShellOwnerFeatureInObservation()
     std::cout << "[PASS] testShellOwnerFeatureInObservation (Owner=+1.0 for player shell verified)\n";
 }
 
+void testEgocentricLidarSensors()
+{
+    ArenaConfig config;
+    TankArena arena(config);
+    const auto obs = arena.reset(300);
+
+    // Lidar features are the last 8 elements: index 376 to 383
+    assert(obs.size() == 384);
+    for(size_t i = 376; i < 384; ++i)
+    {
+        assert(obs[i] >= 0.0F && obs[i] <= 1.0F);
+    }
+
+    // After step with rotation, Lidar updates dynamically
+    const auto stepRot = arena.step({0, 1, 0}); // Rotate clockwise
+    for(size_t i = 376; i < 384; ++i)
+    {
+        assert(stepRot.observation[i] >= 0.0F && stepRot.observation[i] <= 1.0F);
+    }
+
+    std::cout << "[PASS] testEgocentricLidarSensors (8-Ray Lidar normalized in [0, 1] verified)\n";
+}
+
 int main()
 {
     testDeterminism();
@@ -129,6 +154,7 @@ int main()
     testObservationContract();
     testPlayerNotHitByOwnShellAtSpawn();
     testShellOwnerFeatureInObservation();
-    std::cout << "All TankArena C++ tests (5/5) passed successfully!\n";
+    testEgocentricLidarSensors();
+    std::cout << "All TankArena C++ tests (6/6) passed successfully!\n";
     return 0;
 }

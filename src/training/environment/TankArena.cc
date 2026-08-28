@@ -513,7 +513,72 @@ namespace TankTrouble::training
         for(const auto& mask: wallMask_)
             for(const bool blocked: mask)
                 value.push_back(blocked ? 1.0F : 0.0F);
+
+        const auto lidar = wallLidar(player_.x, player_.y, player_.angle);
+        value.insert(value.end(), lidar.begin(), lidar.end());
         return value;
+    }
+
+    float TankArena::raycastWall(float originX, float originY, float rayAngle, float maxDistance) const
+    {
+        const float radians = rayAngle * kPi / 180.0F;
+        const float dx = std::cos(radians);
+        const float dy = -std::sin(radians);
+
+        float minDistance = maxDistance;
+
+        for(const auto& wall: walls_)
+        {
+            if(wall.horizontal)
+            {
+                if(std::abs(dy) < 1e-6F)
+                    continue;
+                const float t = (wall.y1 - originY) / dy;
+                if(t > 0.0F && t < minDistance)
+                {
+                    const float hitX = originX + t * dx;
+                    const float minX = std::min(wall.x1, wall.x2);
+                    const float maxX = std::max(wall.x1, wall.x2);
+                    if(hitX >= minX && hitX <= maxX)
+                    {
+                        minDistance = t;
+                    }
+                }
+            }
+            else
+            {
+                if(std::abs(dx) < 1e-6F)
+                    continue;
+                const float t = (wall.x1 - originX) / dx;
+                if(t > 0.0F && t < minDistance)
+                {
+                    const float hitY = originY + t * dy;
+                    const float minY = std::min(wall.y1, wall.y2);
+                    const float maxY = std::max(wall.y1, wall.y2);
+                    if(hitY >= minY && hitY <= maxY)
+                    {
+                        minDistance = t;
+                    }
+                }
+            }
+        }
+        return minDistance;
+    }
+
+    std::array<float, TankArena::LIDAR_RAYS> TankArena::wallLidar(float x, float y, float angle) const
+    {
+        std::array<float, LIDAR_RAYS> lidar{};
+        constexpr std::array<float, LIDAR_RAYS> kRayAngleOffsets = {
+            0.0F, 45.0F, 90.0F, 135.0F, 180.0F, 225.0F, 270.0F, 315.0F
+        };
+
+        for(size_t i = 0; i < LIDAR_RAYS; ++i)
+        {
+            const float rayAngle = normalizeAngle(angle + kRayAngleOffsets[i]);
+            const float dist = raycastWall(x, y, rayAngle, LIDAR_MAX_DISTANCE);
+            lidar[i] = std::clamp(dist / LIDAR_MAX_DISTANCE, 0.0F, 1.0F);
+        }
+        return lidar;
     }
 
     float TankArena::normalizeAngle(float angle)

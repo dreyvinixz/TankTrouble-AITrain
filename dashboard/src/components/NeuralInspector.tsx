@@ -61,8 +61,8 @@ export const NeuralInspector: React.FC<NeuralInspectorProps> = ({ neural }) => {
         gap: '8px'
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>376 Entradas</div>
-          <div className="mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>12T + 56S + 308M</div>
+          <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>384 Entradas</div>
+          <div className="mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>12T + 56S + 308M + 8L</div>
         </div>
 
         <ArrowRight size={14} color="#64748b" />
@@ -88,26 +88,33 @@ export const NeuralInspector: React.FC<NeuralInspectorProps> = ({ neural }) => {
       </div>
 
       {/* Input Group Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#38bdf8', marginBottom: '4px' }}>
-            <Shield size={12} /> Estado dos Tanques (12)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#38bdf8', marginBottom: '4px' }}>
+            <Shield size={12} /> Tanques (12)
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Posição, ângulo, munição e distância relativa</div>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Posição, ângulo, munição e distância</div>
         </div>
 
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#f43f5e', marginBottom: '4px' }}>
-            <Crosshair size={12} /> Sensores Projéteis (56)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#f43f5e', marginBottom: '4px' }}>
+            <Crosshair size={12} /> Projéteis (56)
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>8 tiros mais próximos, ângulos e tempo de vida</div>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>8 tiros mais próximos, ângulos e owner</div>
         </div>
 
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#34d399', marginBottom: '4px' }}>
-            <Zap size={12} /> Raycasts Labirinto (308)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#34d399', marginBottom: '4px' }}>
+            <Zap size={12} /> Topologia (308)
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Máscara 77 células x 4 paredes N/E/S/W</div>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>77 células x 4 paredes N/E/S/W</div>
+        </div>
+
+        <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#fbbf24', marginBottom: '4px' }}>
+            <Network size={12} /> Lidar 360° (8)
+          </div>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>8 raios egocêntricos (Frente, Lados, Trás)</div>
         </div>
       </div>
 
