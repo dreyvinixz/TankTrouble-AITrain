@@ -30,3 +30,20 @@
 *.exe
 *.out
 *.app
+
+# CMake and IDE build outputs
+/build/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/compile_commands.json
+
+# Local editor settings
+/.idea/
+/.vscode/
+
+# Test, training, and generated experiment outputs
+/outputs/
+/runs/
+/checkpoints/
+/logs/

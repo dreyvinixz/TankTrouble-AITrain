@@ -26,6 +26,8 @@ Please cite both this project and the original TankTrouble repository when using
 
 | Path | Purpose |
 | --- | --- |
+| `.github/` | Issue templates, pull-request checklist, and continuous integration. |
+| `docs/` | Architecture, reproducibility guidance, and the public roadmap. |
 | `view/` | GTKmm screens and reusable GUI components. |
 | `controller/` | Local game loop and online client controller. |
 | `smithAI/` | The current opponent AI: evasion, A* pathfinding, targeting, and firing. |
@@ -33,6 +35,8 @@ Please cite both this project and the original TankTrouble repository when using
 | `protocol/` | Client/server message codec. |
 | `util/` | Vectors, geometry, collision detection, and IDs. |
 | `ev/` | Git submodule containing the event-driven networking library. |
+
+The existing C++ source layout is retained intentionally while the upstream game foundation remains in use. New AI-training code should be added under clearly scoped project-owned directories as described in the [architecture guide](docs/architecture.md).
 
 ## Build on Linux
 
@@ -71,6 +75,20 @@ Planned project-owned work:
 - Observation, action, reward, and episode APIs.
 - Trainable reinforcement-learning agents and reproducible experiments.
 - Evaluation against Agent Smith and other baselines.
+
+See the complete [public roadmap](docs/roadmap.md), [architecture guide](docs/architecture.md), and [reproducibility guide](docs/reproducibility.md).
+
+## Contributing
+
+Contributions, bug reports, and design proposals are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), follow the [Code of Conduct](CODE_OF_CONDUCT.md), and use the GitHub issue templates for actionable reports.
+
+## Security
+
+Please report potential vulnerabilities according to [SECURITY.md](SECURITY.md). Do not include secrets, private credentials, or security-sensitive proof-of-concept details in public issues.
+
+## Changelog
+
+Notable public changes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
