@@ -28,15 +28,16 @@ Please cite both this project and the original TankTrouble repository when using
 | --- | --- |
 | `.github/` | Issue templates, pull-request checklist, and continuous integration. |
 | `docs/` | Architecture, reproducibility guidance, and the public roadmap. |
-| `view/` | GTKmm screens and reusable GUI components. |
-| `controller/` | Local game loop and online client controller. |
-| `smithAI/` | The current opponent AI: evasion, A* pathfinding, targeting, and firing. |
-| `event/` | Player-control events. |
-| `protocol/` | Client/server message codec. |
-| `util/` | Vectors, geometry, collision detection, and IDs. |
-| `ev/` | Git submodule containing the event-driven networking library. |
+| `src/app/` | Application entry point, application window, and GTKmm interface. |
+| `src/game/` | Game domain, map, tanks, shells, controllers, events, and network protocol. |
+| `src/core/` | Shared mathematical and identity primitives. |
+| `src/ai/baselines/agent_smith/` | Attributed rule-based baseline opponent. |
+| `src/training/` | Reserved for project-owned environment, agents, evaluation, and experiments. |
+| `tests/` | Reserved for deterministic game and training-environment regression tests. |
+| `third_party/ev/` | External event-driven networking submodule. |
+| `res/` | Runtime assets used by the GTKmm client. |
 
-The existing C++ source layout is retained intentionally while the upstream game foundation remains in use. New AI-training code should be added under clearly scoped project-owned directories as described in the [architecture guide](docs/architecture.md).
+The codebase is organized around TankTrouble AI Train's application, game, AI, and future-training boundaries. The imported code remains attributed, while new training work has its own dedicated namespace in the project tree. See the [architecture guide](docs/architecture.md).
 
 ## Build on Linux
 

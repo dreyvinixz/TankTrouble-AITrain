@@ -6,19 +6,18 @@ The imported TankTrouble client keeps gameplay, rendering, and networking in sep
 
 | Component | Responsibility |
 | --- | --- |
-| `view/` | GTKmm screens, keyboard input, lobby, and game rendering. |
-| `controller/` | Local game loop and online-state coordination. |
-| `smithAI/` | Existing rule-based opponent: evasion, pathfinding, targeting, and firing. |
-| `event/` | Input actions passed from the interface to controllers. |
-| `protocol/` | Client/server serialization for online mode. |
-| `util/` | Geometry, vectors, collision checks, and identifiers. |
+| `src/app/` | GTKmm screens, keyboard input, application entry point, and game window. |
+| `src/game/` | Game loop, map, objects, controllers, input events, and networking protocol. |
+| `src/core/` | Geometry, vectors, collision checks, and identifiers. |
+| `src/ai/baselines/agent_smith/` | Existing rule-based opponent: evasion, pathfinding, targeting, and firing. |
+| `third_party/ev/` | Attributed event-driven networking dependency. |
 
 ## AI-training boundary
 
 New training features must not depend on GTKmm. The intended project-owned structure is:
 
 ```text
-training/
+src/training/
   environment/  # Reset, step, observations, rewards, and terminal states
   agents/       # Trainable policies and baseline adapters
   evaluation/   # Metrics, match runners, and reproducible benchmarks
