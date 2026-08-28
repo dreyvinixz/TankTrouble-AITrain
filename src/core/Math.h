@@ -5,6 +5,7 @@
 #ifndef TANK_TROUBLE_MATH_H
 #define TANK_TROUBLE_MATH_H
 #include <vector>
+#include <array>
 #include <utility>
 #include "Vec.h"
 
@@ -21,7 +22,7 @@ namespace TankTrouble::util
     Vec polar2Cart(double theta, double p, Vec O = Vec(0, 0));
 
     // Calculate a rectangle's four vertices from its center, rotation, width, and height.
-    std::vector<Vec> getCornerVec(const Vec& pos, double angle, int w, int h);
+    std::array<Vec, 4> getCornerVec(const Vec& pos, double angle, int w, int h);
 
     // Test a rectangle and circle for collision using the rectangle axes, centers, dimensions, and radius.
     bool checkRectCircleCollision(const Vec& vec1, const Vec& vec2,

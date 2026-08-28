@@ -79,7 +79,10 @@ namespace TankTrouble
 
     Object::PosInfo AgentSmith::getShellPosition(int id, uint64_t step)
     {
-        Ballistic ballistic = ballistics[id];
+        auto it = ballistics.find(id);
+        if(it == ballistics.end())
+            return Object::PosInfo::invalid();
+        const Ballistic& ballistic = it->second;
         for(const auto& segment : ballistic)
         {
             if(segment.end.first < step)

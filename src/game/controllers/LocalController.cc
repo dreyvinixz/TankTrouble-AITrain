@@ -312,7 +312,7 @@ namespace TankTrouble
         }
         for(int blockId: shellPossibleCollisionBlocks[static_cast<int>(grid.x())][static_cast<int>(grid.y())][dir])
         {
-            Block block = blocks[blockId];
+            const Block& block = blocks[blockId];
             util::Vec v1 = block.isHorizon() ? util::Vec(1, 0) : util::Vec(0, 1);
             util::Vec v2 = block.isHorizon() ? util::Vec(0, 1) : util::Vec(1, 0);
             if(util::checkRectCircleCollision(v1, v2, block.center(), nextPos.pos,
@@ -342,7 +342,7 @@ namespace TankTrouble
         util::Vec grid(MAP_REAL_TO_GRID(curPos.pos.x(), curPos.pos.y()));
         for(int blockId: tankPossibleCollisionBlocks[static_cast<int>(grid.x())][static_cast<int>(grid.y())])
         {
-            Block block = blocks[blockId];
+            const Block& block = blocks[blockId];
             double blockAngle = block.isHorizon() ? 0.0 : 90.0;
             if(util::checkRectRectCollision(blockAngle, block.center(), block.width(), block.height(),
                                             nextPos.angle, nextPos.pos, Tank::TANK_WIDTH, Tank::TANK_HEIGHT))
@@ -365,7 +365,7 @@ namespace TankTrouble
             bounced.angle = (blockId == VERTICAL_BORDER_ID) ? util::angleFlipY(next.angle) : util::angleFlipX(next.angle);
             return bounced;
         }
-        Block block = blocks[blockId];
+        const Block& block = blocks[blockId];
         for(int i = 0; i < 4; i++)
         {
             std::pair<util::Vec, util::Vec> b = block.border(i);

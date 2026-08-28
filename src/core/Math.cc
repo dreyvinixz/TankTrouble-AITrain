@@ -27,7 +27,7 @@ namespace TankTrouble::util
         return Vec(x, y);
     }
 
-    std::vector<Vec> getCornerVec(const Vec& pos, double angle, int w, int h)
+    std::array<Vec, 4> getCornerVec(const Vec& pos, double angle, int w, int h)
     {
         Vec tl, tr, bl, br;
         static double diagM2 = std::sqrt(static_cast<double>(w * w + h * h)) / 2.0;
