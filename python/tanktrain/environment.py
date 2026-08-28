@@ -73,8 +73,10 @@ class TankTrainVectorEnv:
             self._frames[:, 0, :] = next_obs
             done = terminated | truncated
             if bool(done.any()):
-                for k in range(self.frame_stack):
-                    self._frames[done, k, :] = next_obs[done]
+                for env_idx in range(self.config.num_envs):
+                    if done[env_idx]:
+                        for k in range(self.frame_stack):
+                            self._frames[env_idx, k, :] = next_obs[env_idx]
             stacked_obs = self._frames.reshape(self.config.num_envs, -1).astype(np.float32)
             return (
                 stacked_obs,
