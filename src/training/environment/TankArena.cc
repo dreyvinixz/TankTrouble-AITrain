@@ -74,6 +74,7 @@ namespace TankTrouble::training
         {
             truncated_ = true;
             result.reward += config_.timeoutReward;
+            result.cause = TerminationCause::Timeout;
         }
 
         result.observation = observation();
@@ -209,6 +210,8 @@ namespace TankTrouble::training
         active.reserve(shells_.size());
         bool playerHit = false;
         bool opponentHit = false;
+        bool playerHitBySelf = false;
+        bool smithHitBySelf = false;
 
         for(auto shell: shells_)
         {
@@ -233,10 +236,16 @@ namespace TankTrouble::training
             {
                 const bool hitP = tankHit(shell, player_);
                 const bool hitO = tankHit(shell, opponent_);
-                if(hitP || hitO)
+                if(hitP)
                 {
-                    playerHit |= hitP;
-                    opponentHit |= hitO;
+                    if(shell.owner == 0) playerHitBySelf = true;
+                    playerHit = true;
+                    hit = true;
+                }
+                if(hitO)
+                {
+                    if(shell.owner == 1) smithHitBySelf = true;
+                    opponentHit = true;
                     hit = true;
                 }
             }
@@ -267,16 +276,19 @@ namespace TankTrouble::training
             {
                 result.reward += config_.drawReward;
                 result.playerWon = false;
+                result.cause = TerminationCause::SimultaneousHit;
             }
             else if(playerHit)
             {
                 result.reward += config_.lossReward;
                 result.playerWon = false;
+                result.cause = playerHitBySelf ? TerminationCause::PlayerSelfHit : TerminationCause::PlayerKilledBySmith;
             }
             else
             {
                 result.reward += config_.winReward;
                 result.playerWon = true;
+                result.cause = smithHitBySelf ? TerminationCause::SmithSelfHit : TerminationCause::SmithKilledByPlayer;
             }
         }
     }

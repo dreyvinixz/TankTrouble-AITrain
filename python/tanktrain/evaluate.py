@@ -172,7 +172,9 @@ def record_replay_episode(
         action_np = action.cpu().numpy()
         action_list = action_np[0].tolist()
 
-        next_obs, reward, terminated, truncated = env.step(action_np)
+        step_result = env.step(action_np)
+        next_obs, reward, terminated, truncated = step_result[:4]
+        cause = int(step_result[4][0]) if len(step_result) > 4 else 0
         step_reward = float(reward[0])
         total_reward += step_reward
 
@@ -183,7 +185,17 @@ def record_replay_episode(
         obs = next_obs
 
         if bool(terminated[0]):
-            if step_reward > 0.0:
+            if cause == 3: # SmithKilledByPlayer
+                winner = "player"
+            elif cause == 1: # PlayerKilledBySmith
+                winner = "opponent"
+            elif cause == 2: # PlayerSelfHit
+                winner = "player_suicide"
+            elif cause == 4: # SmithSelfHit
+                winner = "player" # Smith suicided, player gets win
+            elif cause == 5: # SimultaneousHit
+                winner = "draw"
+            elif step_reward > 0.0:
                 winner = "player"
             elif step_reward < 0.0:
                 winner = "opponent"

@@ -17,9 +17,10 @@ class VectorEnvironmentTest(unittest.TestCase):
         second = environment.reset(31)
         np.testing.assert_array_equal(first, second)
         self.assertEqual(first.shape, (2, environment.observation_size))
-        observation, reward, terminated, truncated = environment.step(np.array([[1, 2, 1], [0, 0, 0]]))
+        observation, reward, terminated, truncated, causes = environment.step(np.array([[1, 2, 1], [0, 0, 0]]))
         self.assertEqual(observation.shape, first.shape)
         self.assertEqual(reward.shape, (2,))
+        self.assertEqual(causes.shape, (2,))
         self.assertTrue(np.isfinite(reward).all())
         self.assertTrue((terminated | truncated).all())
 
@@ -35,10 +36,20 @@ class VectorEnvironmentTest(unittest.TestCase):
         )
         environment = TankTrainVectorEnv(config)
         environment.reset(999)
-        _, reward, terminated, truncated = environment.step(np.array([[0, 0, 0]]))
+        _, reward, terminated, truncated, causes = environment.step(np.array([[0, 0, 0]]))
         if truncated[0]:
             self.assertAlmostEqual(float(reward[0]), -0.20, places=5)
             self.assertFalse(terminated[0])
+            self.assertEqual(int(causes[0]), 6) # TerminationCause::Timeout
+
+    def test_frame_stacking(self) -> None:
+        config = EnvironmentConfig(num_envs=2, frame_stack=4)
+        environment = TankTrainVectorEnv(config)
+        self.assertEqual(environment.observation_size, 384 * 4)
+        obs = environment.reset(42)
+        self.assertEqual(obs.shape, (2, 384 * 4))
+        next_obs, _, _, _, _ = environment.step(np.array([[0, 0, 0], [1, 0, 0]]))
+        self.assertEqual(next_obs.shape, (2, 384 * 4))
 
 
 if __name__ == "__main__":

@@ -72,6 +72,7 @@ def main() -> None:
         hit_by_opponent_reward=float(environment_data["reward"].get("hit_by_opponent", 0.0)),
         timeout_reward=float(environment_data["reward"].get("timeout", -0.20)),
         draw_reward=float(environment_data["reward"].get("draw", 0.0)),
+        frame_stack=int(environment_data.get("frame_stack", 1)),
     )
     environment = TankTrainVectorEnv(environment_config)
     observation = torch.as_tensor(environment.reset(seed), dtype=torch.float32, device=device)

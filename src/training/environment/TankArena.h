@@ -8,6 +8,17 @@
 
 namespace TankTrouble::training
 {
+    enum class TerminationCause : uint8_t
+    {
+        None = 0,
+        PlayerKilledBySmith = 1,
+        PlayerSelfHit = 2,
+        SmithKilledByPlayer = 3,
+        SmithSelfHit = 4,
+        SimultaneousHit = 5,
+        Timeout = 6
+    };
+
     struct ArenaConfig
     {
         uint32_t seed = 17;
@@ -18,9 +29,9 @@ namespace TankTrouble::training
         float lossReward = -1.0F;
         float drawReward = 0.0F;
         float timeoutReward = -0.20F;
-        float survivalRewardPerTick = 0.002F;
-        float hitOpponentReward = 0.10F;
-        float hitByOpponentReward = -0.10F;
+        float survivalRewardPerTick = 0.0F;
+        float hitOpponentReward = 0.0F;
+        float hitByOpponentReward = 0.0F;
     };
 
     struct TankAction
@@ -41,6 +52,7 @@ namespace TankTrouble::training
         bool truncated = false;
         bool playerWon = false;
         int decision = 0;
+        TerminationCause cause = TerminationCause::None;
     };
 
     class TankArena

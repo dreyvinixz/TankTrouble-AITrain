@@ -51,7 +51,10 @@ class PPO:
         completed = 0
         completed_reward = 0.0
         completed_wins = 0
-
+        completed_kills = 0
+        completed_losses = 0
+        completed_suicides = 0
+        completed_timeouts = 0
         if self._episode_returns is None or self._episode_returns.shape[0] != observation.shape[0]:
             self._episode_returns = torch.zeros(observation.shape[0], device=self.device)
 
@@ -72,6 +75,7 @@ class PPO:
 
             step_result = environment.step(action.cpu().numpy())
             next_observation, reward, terminated, truncated = step_result[:4]
+            causes = step_result[4] if len(step_result) > 4 else np.zeros_like(terminated, dtype=np.uint8)
             done = terminated | truncated
             observations.append(observation)
             actions.append(action)
@@ -88,8 +92,13 @@ class PPO:
                 finished_rewards = self._episode_returns[done_mask]
                 completed += int(done.sum())
                 completed_reward += float(finished_rewards.sum())
-                # Player wins if terminal reward is positive (winReward > 0)
-                completed_wins += int(((reward_tensor[done_mask] > 0.0) & torch.as_tensor(terminated, device=self.device)[done_mask]).sum())
+                
+                finished_causes = causes[done]
+                completed_kills += int((finished_causes == 3).sum())
+                completed_losses += int((finished_causes == 1).sum())
+                completed_suicides += int((finished_causes == 2).sum())
+                completed_timeouts += int((finished_causes == 6).sum())
+                completed_wins += int((finished_causes == 3).sum())
                 self._episode_returns[done_mask] = 0.0
 
             observation = torch.as_tensor(next_observation, dtype=torch.float32, device=self.device)
@@ -118,12 +127,15 @@ class PPO:
             "value": value_tensor.flatten(),
         }
         mean_ret = (completed_reward / completed) if completed > 0 else 0.0
-        win_rate = (completed_wins / completed) if completed > 0 else 0.0
+        win_rate = (completed_kills / completed) if completed > 0 else 0.0
         metrics = {
             "completed_episodes": float(completed),
             "completed_reward": mean_ret,
             "mean_reward": mean_ret,
             "win_rate": win_rate,
+            "timeout_rate": (completed_timeouts / completed) if completed > 0 else 0.0,
+            "suicide_rate": (completed_suicides / completed) if completed > 0 else 0.0,
+            "loss_rate": (completed_losses / completed) if completed > 0 else 0.0,
             "episodes": float(completed),
         }
         return observation, batch, metrics

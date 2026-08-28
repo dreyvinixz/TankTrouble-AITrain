@@ -69,10 +69,12 @@ namespace
             py::array_t<float> rewards(static_cast<py::ssize_t>(environments_.size()));
             py::array_t<uint8_t> terminated(static_cast<py::ssize_t>(environments_.size()));
             py::array_t<uint8_t> truncated(static_cast<py::ssize_t>(environments_.size()));
+            py::array_t<uint8_t> causes(static_cast<py::ssize_t>(environments_.size()));
             auto observationView = observations.mutable_unchecked<2>();
             auto rewardView = rewards.mutable_unchecked<1>();
             auto terminatedView = terminated.mutable_unchecked<1>();
             auto truncatedView = truncated.mutable_unchecked<1>();
+            auto causesView = causes.mutable_unchecked<1>();
 
             for(size_t index = 0; index < environments_.size(); ++index)
             {
@@ -91,8 +93,9 @@ namespace
                 rewardView(static_cast<py::ssize_t>(index)) = result.reward;
                 terminatedView(static_cast<py::ssize_t>(index)) = result.terminated;
                 truncatedView(static_cast<py::ssize_t>(index)) = result.truncated;
+                causesView(static_cast<py::ssize_t>(index)) = static_cast<uint8_t>(result.cause);
             }
-            return py::make_tuple(observations, rewards, terminated, truncated);
+            return py::make_tuple(observations, rewards, terminated, truncated, causes);
         }
 
         [[nodiscard]] int size() const {return static_cast<int>(environments_.size());}
@@ -118,8 +121,8 @@ PYBIND11_MODULE(tanktrain_env, module)
         .def(py::init<int, uint32_t, int, int, float, float, float, float, float, float, float>(), py::arg("num_envs"), py::arg("seed"),
              py::arg("ticks_per_action") = 3, py::arg("max_decisions") = 600,
              py::arg("win_reward") = 1.0F, py::arg("loss_reward") = -1.0F,
-             py::arg("survival_reward") = 0.002F, py::arg("hit_opponent_reward") = 0.10F,
-             py::arg("hit_by_opponent_reward") = -0.10F,
+             py::arg("survival_reward") = 0.0F, py::arg("hit_opponent_reward") = 0.0F,
+             py::arg("hit_by_opponent_reward") = 0.0F,
              py::arg("timeout_reward") = -0.20F, py::arg("draw_reward") = 0.0F)
         .def("reset", &VectorTankArena::reset, py::arg("seed"))
         .def("step", &VectorTankArena::step, py::arg("actions"))
