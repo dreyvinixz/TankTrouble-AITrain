@@ -3,6 +3,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+# WSL commonly mounts /tmp as a small tmpfs. CUDA wheels need several GB while
+# unpacking, so keep pip's temporary files on the Linux filesystem instead.
+export TMPDIR="${TMPDIR:-$HOME/.cache/tanktrain-tmp}"
+mkdir -p "$TMPDIR"
+
 for command in cmake g++ pkg-config; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing $command. Install build prerequisites:" >&2
