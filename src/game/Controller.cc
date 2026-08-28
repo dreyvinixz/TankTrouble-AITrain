@@ -6,9 +6,9 @@
 namespace TankTrouble
 {
     Controller::Controller():
+        snapshot(new ObjectList),
         started(false),
-        controlLoop(nullptr),
-        snapshot(new ObjectList) {}
+        controlLoop(nullptr) {}
 
     Controller::ObjectListPtr Controller::getObjects()
     {

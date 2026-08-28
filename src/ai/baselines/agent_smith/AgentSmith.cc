@@ -7,6 +7,7 @@
 #include "Shell.h"
 #include "core/Math.h"
 #include <iostream>
+#include <algorithm>
 
 namespace TankTrouble
 {
@@ -60,7 +61,6 @@ namespace TankTrouble
 
     void AgentSmith::ballisticsPredict(const PredictingShellList& shells, uint64_t globalSteps)
     {
-        int seq;
         ballistics.clear();
         for(const auto& shell: shells)
         {
@@ -171,7 +171,7 @@ namespace TankTrouble
         }
         if(strategies.empty())
             return {};
-        sort(strategies.begin(), strategies.end());
+        std::sort(strategies.begin(), strategies.end());
         return strategies[0];
     }
 
@@ -461,7 +461,7 @@ namespace TankTrouble
         }
         if(threats.empty())
             return;
-        sort(threats.begin(), threats.end(), segmentCmp);
+        std::sort(threats.begin(), threats.end(), segmentCmp);
 
         BallisticSegment closest = threats[0];
         if(closest.shellId != prevThreat.shellId || closest.seq != prevThreat.seq)

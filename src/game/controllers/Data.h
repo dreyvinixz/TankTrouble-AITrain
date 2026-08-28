@@ -37,7 +37,7 @@ namespace TankTrouble
         Color color_;
 
         explicit PlayerInfo(const std::string& nickname, Color color):
-            nickname_(nickname), color_(std::move(color)), score_(0) {}
+            nickname_(nickname), score_(0), color_(color) {}
         PlayerInfo() = default;
     };
 }

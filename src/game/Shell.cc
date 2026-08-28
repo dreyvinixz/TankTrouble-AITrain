@@ -5,14 +5,15 @@
 #include "Shell.h"
 #include "core/Math.h"
 #include "core/Id.h"
+#include <cmath>
 
 namespace TankTrouble
 {
     const double Shell::RADIUS = 2.5;
     Shell::Shell(int id, const util::Vec& p, double angle, int tankId):
         Object(p, angle, BLACK, id),
-        _tankId(tankId),
-        _ttl(INITIAL_TTL)
+        _ttl(INITIAL_TTL),
+        _tankId(tankId)
     {movingStatus = MOVING_FORWARD;}
 
     void Shell::draw(const Cairo::RefPtr<Cairo::Context>& cr)
@@ -33,6 +34,7 @@ namespace TankTrouble
 
     Object::PosInfo Shell::getNextPosition(const Object::PosInfo& cur, int movingStep, int rotationStep)
     {
+        (void)rotationStep;
         if(movingStep == 0)
             movingStep = SHELL_MOVING_STEP;
         Object::PosInfo next = cur;

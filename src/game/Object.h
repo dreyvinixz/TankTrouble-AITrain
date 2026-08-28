@@ -9,6 +9,8 @@
 #include <cairomm/context.h>
 #include <vector>
 #include <cfloat>
+#include <cstdint>
+#include <cmath>
 
 #define MOVING_STATIONARY 1
 #define MOVING_FORWARD 2

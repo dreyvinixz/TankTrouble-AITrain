@@ -7,6 +7,7 @@
 #include "Shell.h"
 #include "core/Math.h"
 #include "core/Id.h"
+#include <cmath>
 
 namespace TankTrouble
 {
@@ -132,11 +133,11 @@ namespace TankTrouble
 
     int Tank::remainShells() const {return remainBullets;}
 
-    Shell* Tank::makeShell()
+    std::unique_ptr<Shell> Tank::makeShell()
     {
         remainBullets--;
         util::Vec shellPos = util::polar2Cart(posInfo.angle, 15, posInfo.pos);
-        return new Shell(util::Id::getShellId(), shellPos, posInfo.angle, _id);
+        return std::make_unique<Shell>(util::Id::getShellId(), shellPos, posInfo.angle, _id);
     }
 
     void Tank::getRemainShell() {remainBullets++;}

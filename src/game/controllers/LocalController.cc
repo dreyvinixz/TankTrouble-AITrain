@@ -177,7 +177,7 @@ namespace TankTrouble
     {
         if(tank->remainShells() == 0)
             return;
-        std::unique_ptr<Object> shell(tank->makeShell());
+        std::unique_ptr<Object> shell = tank->makeShell();
         objects[shell->id()] = std::move(shell);
 
         if(objects.find(AI_TANK_ID) == objects.end()) return;
