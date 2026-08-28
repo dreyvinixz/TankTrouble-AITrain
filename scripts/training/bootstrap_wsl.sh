@@ -16,7 +16,7 @@ if ! pkg-config --exists gtkmm-3.0; then
 fi
 
 if command -v uv >/dev/null 2>&1; then
-  uv venv --python 3.12 .venv-wsl
+  uv venv --allow-existing --seed --python 3.12 .venv-wsl
 elif command -v python3.12 >/dev/null 2>&1; then
   python3.12 -m venv .venv-wsl
 else
@@ -24,6 +24,9 @@ else
   exit 1
 fi
 source .venv-wsl/bin/activate
+if ! python -m pip --version >/dev/null 2>&1; then
+  python -m ensurepip --upgrade
+fi
 python -m pip install --upgrade pip
 python -m pip install --index-url https://download.pytorch.org/whl/cu126 torch
 python -m pip install numpy PyYAML pybind11
